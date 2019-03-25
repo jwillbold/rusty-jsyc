@@ -1,0 +1,7 @@
+function wrapBytecode()
+{
+
+}
+
+
+export {wrapBytecode};
