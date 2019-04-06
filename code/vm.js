@@ -1,5 +1,12 @@
 // var bytecode = [50, 14, "getElementById".charCodeAt(0...13)];
 
+// PRE-HELPERS
+window = {};
+if(window.document === void 0) {
+  window.document = {};
+}
+
+
 const REGS = {
   STACK_PTR: 1,
   DOCUMENT: 2,
@@ -72,7 +79,7 @@ class VM
     return this.stack[this.regs[REGS.STACK_PTR]++];
   };
 
-  dispatcher() {
+  run() {
     while(this.regs[REGS.STACK_PTR] < this.stack.length) {
       var op_code = this.getByte();
       var op = this.ops[op_code];
@@ -91,11 +98,6 @@ class VM
     this.regs[REGS.STACK_PTR] = 0;
     // this.regs[REGS.DOCUMENT] = document;
     this.regs[REGS.RETURN_VAL] = 0;
-  };
-
-  invoke(bytecode) {
-    this.init(bytecode);
-    return this.dispatcher();
   };
 
 }
@@ -147,10 +149,10 @@ function runVMTests(testData) {
     var wrappedBytecode = wrapBytecode(testData.bytecode);
 
     var vm = new VM();
-    var result = vm.invoke(wrappedBytecode);
+    vm.init(wrappedBytecode);
+    const result = vm.run();
 
     if(result == 0) {
-
       for(let regData in testData.registers) {
         if(vm.getReg(regData[0]) !== regData[1]) {
           console.warn(testData.name, "failed with return value: ", result);
