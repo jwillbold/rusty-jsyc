@@ -1,7 +1,0 @@
-function wrapBytecode()
-{
-
-}
-
-
-export {wrapBytecode};

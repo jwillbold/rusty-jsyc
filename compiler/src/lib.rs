@@ -1,58 +1,57 @@
-use std::error::Error;
+extern crate ressa;
+extern crate resast;
+extern crate base64;
+
+pub mod error;
+pub mod bytecode;
 
 use ressa::Parser;
 use resast::prelude::*;
 
+use crate::error::{CompilerError};
+pub use crate::bytecode::{Bytecode};
+
+
 pub struct JSSourceCode
 {
-    // pub source_code: String
+    pub source_code: String
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Bytecode
+pub struct JSAst
 {
-
+    pub ast: resast::Program
 }
 
-// struct Parser
-// {
-//
-// }
+impl JSAst {
+    pub fn parse(source: &JSSourceCode) -> Result<Self, ressa::Error> {
+        let mut parser = match ressa::Parser::new(&source.source_code) {
+            Ok(parser) => parser,
+            Err(e) => { return Err(e); }
+        };
+
+        match parser.parse() {
+            Ok(ast) => Ok(JSAst{ ast }),
+            Err(e) => Err(e)
+        }
+    }
+}
 
 pub struct BytecodeCompiler
 {
-
+    // ast: JSAst
 }
 
 impl BytecodeCompiler {
-    pub fn compile(&self, source: &JSSourceCode) -> Result<Bytecode, Box<Error>> {
-        Ok(Bytecode{})
+    pub fn compile(&mut self, source: &JSSourceCode) -> Result<Bytecode, CompilerError> {
+        let ast = match JSAst::parse(source) {
+            Ok(ast) => ast,
+            Err(e) => { return Err(CompilerError::from(e)); }
+        };
+
+        Ok(Bytecode{
+            commands: vec![]
+        })
     }
 }
 
-
-fn main() {
-    let js = "function helloWorld() { alert('Hello world'); }";
-    let p = Parser::new(&js).unwrap();
-    let f = ProgramPart::decl(
-        Decl::Function(
-            Function {
-                id: Some("helloWorld".to_string()),
-                params: vec![],
-                body: vec![
-                    ProgramPart::Stmt(
-                        Stmt::Expr(
-                            Expr::call(Expr::ident("alert"), vec![Expr::string("'Hello world'")])
-                        )
-                    )
-                ],
-                generator: false,
-                is_async: false,
-            }
-        )
-    );
-    for part in p {
-        assert_eq!(part.unwrap(), f);
-    }
-}
 

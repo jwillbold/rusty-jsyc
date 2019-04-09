@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 ressa = "*"
 resast = "*"
+base64 = "0.10"
