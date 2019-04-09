@@ -1,5 +1,36 @@
+use std::error::Error;
+
 use ressa::Parser;
 use resast::prelude::*;
+
+pub struct JSSourceCode
+{
+    // pub source_code: String
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Bytecode
+{
+
+}
+
+// struct Parser
+// {
+//
+// }
+
+pub struct BytecodeCompiler
+{
+
+}
+
+impl BytecodeCompiler {
+    pub fn compile(&self, source: &JSSourceCode) -> Result<Bytecode, Box<Error>> {
+        Ok(Bytecode{})
+    }
+}
+
+
 fn main() {
     let js = "function helloWorld() { alert('Hello world'); }";
     let p = Parser::new(&js).unwrap();
@@ -24,3 +55,4 @@ fn main() {
         assert_eq!(part.unwrap(), f);
     }
 }
+
