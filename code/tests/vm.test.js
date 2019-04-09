@@ -1,34 +1,177 @@
-import VM from '/home/motu/blogpost/code/vm.js';
-import * as helpers from '../helpers.js';
+require("./test_helper.js")();
+require("../vm.js")();
+
+///! HELPERS
+
+function encodeBytecode(nonEncodedBytecode)
+{
+  return nonEncodedBytecode;
+}
+
+function encodeString(string)
+{
+  var stringLength = string.length;
+  var bytecode = [stringLength & 0xff00, stringLength & 0xff];
+
+  for(var i = 0;i<stringLength;i++) {
+    bytecode.push(string.charCodeAt(i));
+  }
+
+  return bytecode;
+}
+
+function encodeRegistersArray(array)
+{
+  const arrayLength = array.length;
+
+  var encodedArray = array.slice();
+  encodedArray.unshift(arrayLength & 0xff00, arrayLength & 0xff);
+
+  return encodedArray;
+}
 
 const testDataSet = [
   {
     name: "Empty Bytecode",
     bytecode: [],
-    registers: {},
+    expected_registers: [],
+  },
+  {
+    name: "Set return value 66",
+    bytecode: [
+      OP.LOAD_NUM, 150 , 66, // LOAD NUM 66 INTO REGISTER 150
+    ],
+    expected_registers: [
+      [150, 66]
+    ],
+  },
+  {
+    name: "Multiply two registers",
+    bytecode: [
+      OP.LOAD_NUM, 150, 3, // LOAD NUM 3 INTO REGISTER 100
+      OP.LOAD_NUM, 151, 2, // LOAD NUM 2 INTO REGISTER 101
+      OP.MUL, 150, 151,    // MULTIPLY NUM IN REG 100 WITH NUM IN REG 101
+    ],
+    expected_registers: [
+      [150, 6]
+    ],
+  },
+  {
+    name: "Load string",
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("Hello World")
+    ],
+    expected_registers: [
+      [150, "Hello World"]
+    ],
+  },
+  {
+    name: "Call member function",
+    init: function() {
+      window.testFunc = function() { return 66; };
+    },
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("testFunc"),
+      OP.PROPACCESS, 151, REGS.WINDOW, 150,
+      OP.FUNC_CALL, 152, 151, REGS.WINDOW, ...encodeRegistersArray([])
+    ],
+    expected_registers: [
+      [150, "testFunc"],
+      [152, 66]
+    ],
+  },
+  {
+    name: "Call member function with arguments",
+    init: function() {
+      window.testFunc = function(a ,b) { return a + b; };
+    },
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("testFunc"),
+      OP.PROPACCESS, 151, REGS.WINDOW, 150,
+      OP.LOAD_NUM, 160, 60,
+      OP.LOAD_NUM, 161, 6,
+      // Cal the function
+      OP.FUNC_CALL, 152, 151, REGS.WINDOW, ...encodeRegistersArray([160, 161])
+    ],
+    expected_registers: [
+      [150, "testFunc"],
+      [152, 66]
+    ],
+  },
+  {
+    name: "Create object",
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("String"),
+      OP.PROPACCESS, 151, REGS.WINDOW, 150,
+      OP.FUNC_CALL, 152, 151, REGS.WINDOW, ...encodeRegistersArray([])
+    ],
+    expected_registers: [
+      [150, "String"],
+      [152, ""]
+    ]
+  },
+  {
+    name: "Call bytecode function",
+    bytecode: [
+      OP.LOAD_NUM, 150, 60,
+      OP.LOAD_NUM, 151, 6,
+      OP.CALL_BCFUNC, 12, // 15 is the offset of the bytecode below
+      OP.ADD, REGS.BCFUNC_RETURN, 150,
+      OP.EXIT,
+
+      // The function: function(a ,b) { return (a+b)*2; }
+      OP.ADD, 150, 151,
+      OP.MUL, 150, 150,
+      OP.COPY, REGS.BCFUNC_RETURN, 150,
+      OP.RETURN_BCFUNC,
+    ],
+    expected_registers: [
+      [REGS.BCFUNC_RETURN, 4416],
+      [150, 60],
+      [151, 6],
+    ]
+  },
+  {
+    name: "Load and call custom function",
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("0,function(){return 66;}"),
+      OP.EVAL, 150, 150,
+      OP.FUNC_CALL, 151, 150, REGS.EMPTY_OBJ, ...encodeRegistersArray([]),
+    ],
+    expected_registers: [
+      [151, 66],
+    ]
   }
 ]
 
-function runVMTests(testData)
-{
-  try {
-    var wrappedBytecode = helpers.wrapBytecode(testData[bytecode]);
+function runVMTests(testData) {
+  var encodedBytecode = encodeBytecode(testData.bytecode);
 
-    var vm = new VM();
-    var result = vm.invoke(wrappedBytecode);
-
-    if(result == 0) {
-      console.log(testData[name], "passed");
-    } else {
-      console.warn(testData[name], "failed with return value: ", result);
-    }
-  } catch(e) {
-    console.warn(testData[name], "failed with exception: ", e);
+  if(testData.init instanceof Function) {
+    testData.init();
   }
 
+  var vm = new VM();
+  vm.init(encodedBytecode);
+
+  const result = vm.run();
+  assert.equal(result, 0);
+
+  for(let regData of testData.expected_registers) {
+    assert.equal(vm.getReg(regData[0]), regData[1],
+                "Expected register " + regData[0] +  " to be " + regData[1] +
+                " but it is " + vm.getReg(regData[0]));
+  }
 }
 
 
+describe("VM Tests", function() {
+  describe("Instructions Tests", function() {
+    for(let testData of testDataSet) {
+      it(testData.name, function() {
+        runVMTests(testData);
+      });
+    }
+  });
+});
 
-
-runVMTests();

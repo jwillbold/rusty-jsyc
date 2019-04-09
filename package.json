@@ -1,0 +1,20 @@
+{
+  "name": "blogpost",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Johannes Willbold",
+  "scripts": {
+    "test": "_mocha --recursive ./code/tests/*.test.js"
+  },
+  "dependencies": {
+    "mocha": "~6.1.2",
+    "chai": "~4.2.0"
+  },
+  "description": "A blogpost about the basics of JavaScript virtualization obfuscation",
+  "main": "index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@git.noc.ruhr-uni-bochum.de:willbjy6/jsob-blogpost.git"
+  }
+}
