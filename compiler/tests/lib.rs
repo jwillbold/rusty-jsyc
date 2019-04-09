@@ -3,7 +3,7 @@ use compiler::*;
 
 
 #[test]
-fn test_empty_js_code() {
+fn test_compile_empty_js_code() {
     let mut compiler = compiler::BytecodeCompiler{ };
     let js_code = compiler::JSSourceCode{
         source_code: "".into()
@@ -14,7 +14,7 @@ fn test_empty_js_code() {
 }
 
 #[test]
-fn test_assign_int() {
+fn test_compile_assign_int() {
     let compiler = compiler::BytecodeCompiler{};
     let js_code = compiler::JSSourceCode{
         source_code: "var a = 5;".into()

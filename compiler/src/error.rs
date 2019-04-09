@@ -3,7 +3,9 @@ use std::{error, fmt};
 
 #[derive(Debug)]
 pub enum CompilerError {
-    Parser(RessaError)
+    Parser(RessaError),
+    // NotSupported(String),
+    Custom(String)
 }
 
 impl std::fmt::Display for CompilerError {
@@ -15,7 +17,9 @@ impl std::fmt::Display for CompilerError {
 impl std::error::Error for CompilerError {
     fn description(&self) -> &str {
         match *self {
-            CompilerError::Parser(ref e) => "TODO"
+            CompilerError::Parser(ref e) => "TODO",
+            // CompilerError::NotSupported(ref s) => format!("'{}' is not supported", s).as_str(),
+            CompilerError::Custom(ref s) => s.as_str(),
         }
     }
 
