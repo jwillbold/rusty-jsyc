@@ -1,16 +1,25 @@
 use crate::error::{CompilerError};
 use crate::jshelper::{JSSourceCode, JSAst};
 use crate::bytecode::{Bytecode};
+use crate::scope::{*};
 
 pub use resast::prelude::*;
+pub use resast::prelude::Pat::Identifier;
 
 
 pub struct BytecodeCompiler
 {
-    // ast: JSAst
+    scopes: Scopes
 }
 
 impl BytecodeCompiler {
+
+    pub fn new() -> Self {
+        BytecodeCompiler{
+            scopes: Scopes::new()
+        }
+    }
+
     pub fn compile(&mut self, source: &JSSourceCode) -> Result<Bytecode, CompilerError> {
         let ast = match JSAst::parse(source) {
             Ok(ast) => ast,
@@ -36,13 +45,39 @@ impl BytecodeCompiler {
         })
     }
 
-    fn compile_decl(&mut self, decl: &resast::Decl) -> Result<Bytecode, CompilerError> {
+    fn compile_decl(&mut self, decl: &Decl) -> Result<Bytecode, CompilerError> {
         match decl {
-            resast::Decl::Variable(var_kind, var_decls) => Ok(Bytecode{commands:vec![]}),
-            resast::Decl::Function(func) => Ok(Bytecode{commands:vec![]}),
-            resast::Decl::Class(_) => { return Err(CompilerError::Custom("Class declarations are not supported".into())); },
-            resast::Decl::Import(_) => { return Err(CompilerError::Custom("Import declarations are not supported".into())); },
-            resast::Decl::Export(_) => { return Err(CompilerError::Custom("Export declarations are not supported".into())); },
+            Decl::Variable(var_kind, var_decls) => self.compile_var_decl(var_kind, var_decls),
+            Decl::Function(func) => Ok(Bytecode{commands:vec![]}),
+            Decl::Class(_) => Err(CompilerError::Custom("Class declarations are not supported".into())),
+            Decl::Import(_) => Err(CompilerError::Custom("Import declarations are not supported".into())),
+            Decl::Export(_) => Err(CompilerError::Custom("Export declarations are not supported".into())),
         }
+    }
+
+    fn compile_var_decl(&mut self, kind: &VariableKind, decls: &[VariableDecl]) -> Result<Bytecode, CompilerError> {
+        match kind {
+            VariableKind::Let => { warn!("'let' will be treated as 'var'"); }
+            VariableKind::Const => { info!("'const' will be trated as 'var'"); }
+            _ => {}
+        }
+
+        Ok(decls.iter().map(|decl| {
+            match &decl.id {
+                Identifier(ident) => {
+                    let reg = self.scopes.add_decl(ident.to_string());
+                }
+                Pat::Array(_) => { return Err(CompilerError::Custom("'Array Patterns' are not supported".into())); },
+                Pat::Object(_) => { return Err(CompilerError::Custom("'Object Patterns' are not supported".into())); },
+                Pat::RestElement(_) => { return Err(CompilerError::Custom("'Rest Elements' are not supported".into())); }
+                Pat::Assignment(_) => { return Err(CompilerError::Custom("'Assignment Patterns' are not supported".into())); }
+            }
+
+            Ok(Bytecode{commands:vec![]})
+        }).flatten().collect())
+    }
+
+    fn compile_expr(&mut self, expr: &Expr) -> Result<Bytecode, CompilerError> {
+        Ok(Bytecode{commands:vec![]})
     }
 }

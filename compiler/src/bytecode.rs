@@ -158,6 +158,9 @@ impl std::fmt::Display for Bytecode {
 }
 
 impl Bytecode {
+
+    pub fn new() -> Self
+
     fn to_bytes(&self) -> Vec<u8> {
         self.commands.iter().map(|line| line.to_bytes()).flatten().collect()
     }
