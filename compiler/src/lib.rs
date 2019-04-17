@@ -1,3 +1,5 @@
+#[warn(unused_imports)]
+
 extern crate ressa;
 extern crate resast;
 extern crate base64;
@@ -14,9 +16,3 @@ pub use crate::jshelper::{JSSourceCode, JSAst};
 pub use crate::error::{CompilerError};
 pub use crate::bytecode::{Bytecode};
 pub use crate::compiler::{BytecodeCompiler};
-
-
-
-
-
-

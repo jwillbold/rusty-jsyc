@@ -2,7 +2,7 @@ use std::collections::*;
 
 use crate::error::{CompilerError};
 
-type Register = u8;
+pub type Register = u8;
 
 #[derive(Debug, Clone)]
 pub struct Declaration
@@ -11,6 +11,7 @@ pub struct Declaration
     pub register: Register,
 }
 
+#[derive(Debug)]
 pub struct Scope
 {
     pub decls: HashMap<String, Declaration>,
@@ -18,6 +19,12 @@ pub struct Scope
 
 impl Scope
 {
+    pub fn new() -> Self {
+        Scope{
+            decls: HashMap::new(),
+        }
+    }
+
     pub fn used_registers(&self) -> Vec<Register> {
         self.decls.iter().map(|(_, decl)| {
             decl.register
@@ -25,6 +32,7 @@ impl Scope
     }
 }
 
+#[derive(Debug)]
 pub struct Scopes
 {
     scopes: Vec<Scope>,
@@ -35,7 +43,7 @@ impl Scopes
 {
     pub fn new() -> Scopes {
         Scopes {
-            scopes: vec![],
+            scopes: vec![ Scope::new() ],
             unused_register: (0..Register::max_value()).collect()
         }
     }
@@ -51,16 +59,13 @@ impl Scopes
 
     pub fn get_var(&self, var_name: &str) -> Result<&Declaration, CompilerError> {
         self.current_scope()?.decls.get(var_name).ok_or(
-            CompilerError::Custom(format!("THe declaration '{}' does not exist", var_name))
+            CompilerError::Custom(format!("The declaration '{}' does not exist", var_name))
         )
     }
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
         Ok(self.scopes.push(Scope {
-            decls: match self.scopes.len() {
-                0 => HashMap::new(),
-                _ => self.current_scope()?.decls.clone()
-            }
+            decls: self.current_scope()?.decls.clone()
         }))
     }
 
@@ -96,18 +101,16 @@ impl Scopes
 fn test_scopes() {
     let mut scopes = Scopes::new();
 
-    scopes.enter_new_scope().unwrap();
+    let r0 = scopes.add_decl("globalVar".into()).unwrap();
 
-        let r0 = scopes.add_decl("globalVar".into()).unwrap();
-
-        scopes.enter_new_scope().unwrap();
-            let r1 = scopes.add_decl("testVar".into()).unwrap();
-            let r2 = scopes.add_decl("anotherVar".into()).unwrap();
-            assert_ne!(r0, r1);
-            assert_ne!(r1, r2);
-            assert_eq!(scopes.get_var("testVar").unwrap().register, r1);
-            assert_eq!(scopes.get_var("anotherVar").unwrap().register, r2);
-        assert!(scopes.leave_current_scope().is_ok());
+    scopes.enter_new_scope();
+        let r1 = scopes.add_decl("testVar".into()).unwrap();
+        let r2 = scopes.add_decl("anotherVar".into()).unwrap();
+        assert_ne!(r0, r1);
+        assert_ne!(r1, r2);
+        assert_eq!(scopes.get_var("testVar").unwrap().register, r1);
+        assert_eq!(scopes.get_var("anotherVar").unwrap().register, r2);
+    assert!(scopes.leave_current_scope().is_ok());
 
     assert_eq!(scopes.get_var("globalVar").unwrap().register, r0);
     assert!(scopes.get_var("testVar").is_err());
