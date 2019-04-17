@@ -16,6 +16,7 @@ pub enum Instruction
     ReturnBytecodeFunc,
     Copy,
     Exit,
+    JumpCond,
 
     Add,
     Mul,
@@ -34,6 +35,7 @@ impl Instruction {
             Instruction::ReturnBytecodeFunc => 14,
             Instruction::Copy => 15,
             Instruction::Exit => 16,
+            Instruction::JumpCond => 17, 
 
             Instruction::Add => 100,
             Instruction::Mul => 101,

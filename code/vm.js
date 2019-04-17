@@ -38,6 +38,7 @@ const OP = {
   RETURN_BCFUNC: 14,
   COPY: 15,
   EXIT: 16,
+  COND_JUMP: 17,
 
   // Math
   ADD: 100,
@@ -110,6 +111,16 @@ class VM {
 
     this.ops[OP.EXIT] = function(vm) {
       vm.setReg(REGS.STACK_PTR, vm.stack.length);
+    }
+
+    this.ops[OP.COND_JUMP] = function(vm) {
+      var cond = vm.getByte(), jump = vm.getByte();
+      cond = vm.getReg(cond);
+      jump = vm.getReg(jump);
+
+      if(cond) {
+        vm.setReg(REGS.STACK_PTR, vm.getReg(REGS.STACK_PTR)+jump);
+      }
     }
 
     this.ops[OP.ADD] = function(vm) {
