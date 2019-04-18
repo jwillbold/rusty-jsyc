@@ -1,11 +1,21 @@
 use ressa::Error as RessaError;
-use std::{error, fmt};
+use std::{error};
 
 #[derive(Debug)]
 pub enum CompilerError {
     Parser(RessaError),
-    // NotSupported(String),
+    Unsupported(String),
     Custom(String)
+}
+
+impl CompilerError {
+    pub fn is_unsupported(error: &str) -> Self {
+        CompilerError::Unsupported(format!("'{}' is not supported", error))
+    }
+
+    pub fn are_unsupported(error: &str) -> Self {
+        CompilerError::Unsupported(format!("'{}' are not supported", error))
+    }
 }
 
 impl std::fmt::Display for CompilerError {
@@ -17,8 +27,8 @@ impl std::fmt::Display for CompilerError {
 impl std::error::Error for CompilerError {
     fn description(&self) -> &str {
         match *self {
-            CompilerError::Parser(ref e) => "TODO",
-            // CompilerError::NotSupported(ref s) => format!("'{}' is not supported", s).as_str(),
+            CompilerError::Parser(_) => unimplemented!("RessaError handling"),
+            CompilerError::Unsupported(ref s) |
             CompilerError::Custom(ref s) => s.as_str(),
         }
     }

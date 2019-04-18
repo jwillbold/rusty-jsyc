@@ -25,7 +25,7 @@ impl Scope
         }
     }
 
-    pub fn used_registers(&self) -> Vec<Register> {
+    pub fn used_registers(&self) -> VecDeque<Register> {
         self.decls.iter().map(|(_, decl)| {
             decl.register
         }).collect()
@@ -36,7 +36,7 @@ impl Scope
 pub struct Scopes
 {
     scopes: Vec<Scope>,
-    unused_register: Vec<Register>
+    unused_register: VecDeque<Register>
 }
 
 impl Scopes
@@ -91,7 +91,7 @@ impl Scopes
     }
 
     fn get_unused_register(&mut self) -> Result<Register, CompilerError> {
-        self.unused_register.pop().ok_or(
+        self.unused_register.pop_front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
         )
     }
@@ -103,7 +103,7 @@ fn test_scopes() {
 
     let r0 = scopes.add_decl("globalVar".into()).unwrap();
 
-    scopes.enter_new_scope();
+    scopes.enter_new_scope().unwrap();
         let r1 = scopes.add_decl("testVar".into()).unwrap();
         let r2 = scopes.add_decl("anotherVar".into()).unwrap();
         assert_ne!(r0, r1);

@@ -27,26 +27,26 @@ impl BytecodeCompiler {
             Err(e) => { return Err(CompilerError::from(e)); }
         };
 
-        match ast.ast {
-            resast::Program::Mod(m) => { return Err(CompilerError::Custom("ES6 Modules are not supported".into())); },
+        let bytecode = match ast.ast {
+            resast::Program::Mod(_) => { return Err(CompilerError::Custom("ES6 Modules are not supported".into())); },
             resast::Program::Script(s) => {
-                for part in s {
+                s.iter().map(|part| {
                     match part {
-                        resast::ProgramPart::Dir(_) => { return Err(CompilerError::Custom("Directives are not supported".into())); },
-                        resast::ProgramPart::Decl(decl) => {},
-                        resast::ProgramPart::Stmt(stmt) => {}
+                        resast::ProgramPart::Dir(_) => Err(CompilerError::Custom("Directives are not supported".into())),
+                        resast::ProgramPart::Decl(decl) => self.compile_decl(&decl),
+                        resast::ProgramPart::Stmt(stmt) => self.compile_stmt(&stmt)
                     }
-                }
+                }).collect::<Result<Bytecode, CompilerError>>()?
             },
-        }
+        };
 
-        Ok(Bytecode::new())
+        Ok(bytecode)
     }
 
     fn compile_decl(&mut self, decl: &Decl) -> Result<Bytecode, CompilerError> {
         match decl {
             Decl::Variable(var_kind, var_decls) => self.compile_var_decl(var_kind, var_decls),
-            Decl::Function(func) => Ok(Bytecode::new()),
+            Decl::Function(func) => self.compile_func(func),
             Decl::Class(_) => Err(CompilerError::Custom("Class declarations are not supported".into())),
             Decl::Import(_) => Err(CompilerError::Custom("Import declarations are not supported".into())),
             Decl::Export(_) => Err(CompilerError::Custom("Export declarations are not supported".into())),
@@ -69,24 +69,41 @@ impl BytecodeCompiler {
                         None => Ok(Bytecode::new())
                     }
                 }
-                Pat::Array(_) => { return Err(CompilerError::Custom("'Array Patterns' are not supported".into())); },
-                Pat::Object(_) => { return Err(CompilerError::Custom("'Object Patterns' are not supported".into())); },
-                Pat::RestElement(_) => { return Err(CompilerError::Custom("'Rest Elements' are not supported".into())); }
-                Pat::Assignment(_) => { return Err(CompilerError::Custom("'Assignment Patterns' are not supported".into())); }
+                Pat::Array(_) => Err(CompilerError::Custom("'Array Patterns' are not supported".into())),
+                Pat::Object(_) => Err(CompilerError::Custom("'Object Patterns' are not supported".into())),
+                Pat::RestElement(_) => Err(CompilerError::Custom("'Rest Elements' are not supported".into())),
+                Pat::Assignment(_) => Err(CompilerError::Custom("'Assignment Patterns' are not supported".into()))
             }
         }).collect()
+    }
+
+    fn compile_stmt(&mut self, stmt: &Stmt) -> Result<Bytecode, CompilerError> {
+        match stmt {
+            Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
+            Stmt::Empty => Ok(Bytecode::new()),
+
+            _ => Err(CompilerError::is_unsupported("Statement type"))
+        }
     }
 
     fn compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<Bytecode, CompilerError> {
         match expr {
             Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Register(self.scopes.get_var(&ident)?.register)),
             Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
-            _ => Err(CompilerError::Custom("Expression type are not supported".into())),
+            _ => Err(CompilerError::is_unsupported("Expression type")),
         }
     }
 
+    fn compile_func(&mut self, func: &Function) -> Result<Bytecode, CompilerError> {
+        if func.generator || func.is_async {
+            return Err(CompilerError::are_unsupported("generator ans async functions"))
+        }
+
+        unimplemented!("Functions")
+    }
+
     fn compile_operand_assignment(&mut self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
-        Ok(Bytecode::new().add(Command::new(Instruction::Copy, vec![Operand::Register(left), right])))
+        Ok(Bytecode::new().add(Command::new(right.get_assign_instr_type(), vec![Operand::Register(left), right])))
     }
 }
 
@@ -102,7 +119,15 @@ fn test_bytecode_compile_var_decl() {
     assert_eq!(test_expr_ident.compile_var_decl(&VariableKind::Var, &vec![
             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Ident("anotherVar".into()))}
         ]).unwrap(),
-        Bytecode::new().add(Command::new(Instruction::Copy,
+        Bytecode::new().add(Command::new(Instruction::LoadNum,
             vec![Operand::Register(test_expr_ident.scopes.get_var("testVar".into()).unwrap().register),
                  Operand::Register(test_expr_ident_reg)])));
+
+     let mut test_expr_str_lit = BytecodeCompiler::new();
+     assert_eq!(test_expr_str_lit.compile_var_decl(&VariableKind::Var, &vec![
+             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Literal(Literal::String("TestString".into())))}
+         ]).unwrap(),
+         Bytecode::new().add(Command::new(Instruction::LoadString,
+             vec![Operand::Register(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
+                  Operand::Str("TestString".into())])));
 }

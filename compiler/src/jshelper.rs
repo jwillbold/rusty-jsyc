@@ -1,5 +1,4 @@
 use ressa::Parser;
-use resast::prelude::*;
 
 pub struct JSSourceCode
 {

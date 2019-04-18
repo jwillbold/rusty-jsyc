@@ -1,5 +1,5 @@
 use crate::error::{CompilerError};
-use std::{fmt, u16};
+use std::{u16};
 use std::iter::FromIterator;
 use base64::encode;
 
@@ -10,6 +10,8 @@ pub use resast::prelude::*;
 pub enum Instruction
 {
     LoadString,
+    LoadFloatNum,
+    LoadLongNum,
     LoadNum,
 
     PropAccess,
@@ -30,6 +32,8 @@ impl Instruction {
         match self {
             Instruction::LoadString => 1,
             Instruction::LoadNum => 2,
+            Instruction::LoadFloatNum => 3,
+            Instruction::LoadLongNum => 4,
 
             Instruction::PropAccess => 10,
             Instruction::CallFunc => 11,
@@ -86,6 +90,16 @@ impl Operand {
             Literal::Number(num) => Ok(Operand::ShortNum(num.parse().unwrap())), //TODO
             Literal::Boolean(bool) => Ok(Operand::ShortNum(bool as u8)),
             Literal::RegEx(_) | Literal::Template(_) => Err(CompilerError::Custom("regex and template literals are not supported".into()))
+        }
+    }
+
+    pub fn get_assign_instr_type(&self) -> Instruction {
+        match *self {
+            Operand::Str(_) => Instruction::LoadString,
+            Operand::FloatNum(_) => Instruction::LoadFloatNum,
+            Operand::LongNum(_) => Instruction::LoadLongNum,
+            Operand::ShortNum(_) | Operand::Register(_) => Instruction::LoadNum,
+            Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation")
         }
     }
 
@@ -232,7 +246,7 @@ impl Bytecode {
         self.commands.iter().map(|line| line.to_bytes()).flatten().collect()
     }
 
-    fn encode(&self) -> String {
+    pub fn encode(&self) -> String {
         base64::encode(&self.to_bytes())
     }
 }
