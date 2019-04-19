@@ -11,10 +11,11 @@ pub struct Declaration
     pub register: Register,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scope
 {
     pub decls: HashMap<String, Declaration>,
+    pub unnamed_reserved_registers: VecDeque<Register>,
 }
 
 impl Scope
@@ -22,17 +23,20 @@ impl Scope
     pub fn new() -> Self {
         Scope{
             decls: HashMap::new(),
+            unnamed_reserved_registers: VecDeque::new()
         }
     }
 
-    pub fn used_registers(&self) -> VecDeque<Register> {
-        self.decls.iter().map(|(_, decl)| {
+    pub fn used_registers(self) -> VecDeque<Register> {
+        let mut uses_regs = self.unnamed_reserved_registers;
+        uses_regs.append(&mut self.decls.iter().map(|(_, decl)| {
             decl.register
-        }).collect()
+        }).collect());
+        uses_regs
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scopes
 {
     scopes: Vec<Scope>,
@@ -57,6 +61,16 @@ impl Scopes
         Ok(unused_reg)
     }
 
+    pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {
+        self.get_unused_register()
+    }
+
+    pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
+        self.unused_register.front().ok_or(
+            CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
+        )
+    }
+
     pub fn get_var(&self, var_name: &str) -> Result<&Declaration, CompilerError> {
         self.current_scope()?.decls.get(var_name).ok_or(
             CompilerError::Custom(format!("The declaration '{}' does not exist", var_name))
@@ -65,7 +79,8 @@ impl Scopes
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
         Ok(self.scopes.push(Scope {
-            decls: self.current_scope()?.decls.clone()
+            decls: self.current_scope()?.decls.clone(),
+            unnamed_reserved_registers: VecDeque::new()
         }))
     }
 
@@ -81,13 +96,11 @@ impl Scopes
         )
     }
 
-    pub fn leave_current_scope(&mut self) -> Result<Scope, CompilerError> {
+    pub fn leave_current_scope(&mut self) -> Result<(), CompilerError> {
         let scope = self.scopes.pop().ok_or(
             CompilerError::Custom("Cannot leave inextsiting scope".into())
         )?;
-        self.unused_register.append(&mut scope.used_registers());
-
-        Ok(scope)
+        Ok(self.unused_register.append(&mut scope.used_registers()))
     }
 
     fn get_unused_register(&mut self) -> Result<Register, CompilerError> {

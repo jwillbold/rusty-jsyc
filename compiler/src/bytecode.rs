@@ -64,7 +64,7 @@ fn test_instrution_to_byte() {
 #[derive(Debug, PartialEq)]
 pub enum Operand
 {
-    Str(String),
+    String(String),
     FloatNum(f64),
     LongNum(i64),
     ShortNum(u8),
@@ -75,7 +75,7 @@ pub enum Operand
 impl Operand {
     fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Operand::Str(string) => Operand::encode_string(string.to_string()),
+            Operand::String(string) => Operand::encode_string(string.to_string()),
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
             Operand::ShortNum(num) | Operand::Register(num) => vec![*num],
@@ -86,7 +86,7 @@ impl Operand {
     pub fn from_literal(lit: Literal) -> Result<Self, CompilerError> {
         match lit {
             Literal::Null => Ok(Operand::Register(0)), //TODO: Register of predefined void 0,
-            Literal::String(string) => Ok(Operand::Str(string)),
+            Literal::String(string) => Ok(Operand::String(string)),
             Literal::Number(num) => Ok(Operand::ShortNum(num.parse().unwrap())), //TODO
             Literal::Boolean(bool) => Ok(Operand::ShortNum(bool as u8)),
             Literal::RegEx(_) | Literal::Template(_) => Err(CompilerError::Custom("regex and template literals are not supported".into()))
@@ -95,12 +95,17 @@ impl Operand {
 
     pub fn get_assign_instr_type(&self) -> Instruction {
         match *self {
-            Operand::Str(_) => Instruction::LoadString,
+            Operand::String(_) => Instruction::LoadString,
             Operand::FloatNum(_) => Instruction::LoadFloatNum,
             Operand::LongNum(_) => Instruction::LoadLongNum,
-            Operand::ShortNum(_) | Operand::Register(_) => Instruction::LoadNum,
+            Operand::ShortNum(_) => Instruction::LoadNum,
+            Operand::Register(_) => Instruction::Copy,
             Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation")
         }
+    }
+
+    pub fn str(string: String) -> Self {
+        Operand::String(string.to_string())
     }
 
     fn encode_string(string: String) -> Vec<u8> {
@@ -145,7 +150,7 @@ impl Into<Vec<u8>> for Operand {
 
 #[test]
 fn test_encode_string() {
-    assert_eq!(Operand::Str("Hello World".into()).to_bytes(),
+    assert_eq!(Operand::String("Hello World".into()).to_bytes(),
                vec![0, 11, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
 }
 
@@ -239,6 +244,11 @@ impl Bytecode {
 
     pub fn add(mut self, command: Command) -> Self {
         self.commands.push(command);
+        self
+    }
+
+    pub fn combine(mut self, mut other: Bytecode) -> Self {
+        self.commands.append(&mut other.commands);
         self
     }
 

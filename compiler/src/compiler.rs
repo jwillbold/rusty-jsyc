@@ -6,8 +6,18 @@ use crate::bytecode::{*};
 
 pub use resast::prelude::*;
 pub use resast::prelude::Pat::Identifier;
+use std::borrow::Borrow;
+
+pub type CompilerResult<V> = Result<V, CompilerError>;
+pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
 
+// pub struct ImportantRegisters {
+//     undefined: Register,
+//
+// }
+
+#[derive(Clone)]
 pub struct BytecodeCompiler
 {
     scopes: Scopes
@@ -21,6 +31,10 @@ impl BytecodeCompiler {
         }
     }
 
+    pub fn add_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+        self.scopes.add_decl(decl)
+    }
+
     pub fn compile(&mut self, source: &JSSourceCode) -> Result<Bytecode, CompilerError> {
         let ast = match JSAst::parse(source) {
             Ok(ast) => ast,
@@ -31,16 +45,20 @@ impl BytecodeCompiler {
             resast::Program::Mod(_) => { return Err(CompilerError::Custom("ES6 Modules are not supported".into())); },
             resast::Program::Script(s) => {
                 s.iter().map(|part| {
-                    match part {
-                        resast::ProgramPart::Dir(_) => Err(CompilerError::Custom("Directives are not supported".into())),
-                        resast::ProgramPart::Decl(decl) => self.compile_decl(&decl),
-                        resast::ProgramPart::Stmt(stmt) => self.compile_stmt(&stmt)
-                    }
+                    self.compile_program_part(part)
                 }).collect::<Result<Bytecode, CompilerError>>()?
             },
         };
 
         Ok(bytecode)
+    }
+
+    fn compile_program_part(&mut self, progrm_part: &ProgramPart) -> BytecodeResult {
+        match progrm_part {
+            resast::ProgramPart::Dir(_) => Err(CompilerError::Custom("Directives are not supported".into())),
+            resast::ProgramPart::Decl(decl) => self.compile_decl(&decl),
+            resast::ProgramPart::Stmt(stmt) => self.compile_stmt(&stmt)
+        }
     }
 
     fn compile_decl(&mut self, decl: &Decl) -> Result<Bytecode, CompilerError> {
@@ -79,17 +97,76 @@ impl BytecodeCompiler {
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> Result<Bytecode, CompilerError> {
         match stmt {
-            Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
+            Stmt::Expr(expr) => self.compile_expr(&expr, *self.scopes.get_throwaway_register()?),
+            Stmt::Block(stmts) => stmts.iter().map(|part| self.compile_program_part(part)).collect(),
             Stmt::Empty => Ok(Bytecode::new()),
-
+            Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statments")),
+            Stmt::With(_) => Err(CompilerError::are_unsupported("'with' statments")),
+            Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
+            Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
+            Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
             _ => Err(CompilerError::is_unsupported("Statement type"))
+        }
+    }
+
+    // fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<(Bytecode, Register), CompilerError> {
+    fn maybe_compile_expr<F>(&mut self, expr: &Expr, mut target_reg_func: F) -> Result<(Bytecode, Register), CompilerError>
+        where F: FnMut() -> CompilerResult<Register>
+    {
+        let target_reg = target_reg_func()?;
+
+        let mut get_reg_by_ident = |ident: &str| {
+            match self.scopes.get_var(ident) {
+                Ok(var) => Ok((Bytecode::new(), var.register)),
+                Err(_) => Ok((self.compile_expr(expr, target_reg)?, target_reg))
+            }
+        };
+
+        match expr {
+            Expr::Ident(ident) => get_reg_by_ident(&ident),
+            // Expr::Member(member) => get_reg_by_ident(format!("{}.{}", )),
+            _ => Ok((self.compile_expr(expr, target_reg)?, target_reg))
         }
     }
 
     fn compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<Bytecode, CompilerError> {
         match expr {
+            Expr::Call(call) => {
+                let mut arg_regs = Vec::new();
+
+                let bytecode = call.arguments.iter().map(|arg| {
+                    let arg_reg = self.scopes.reserve_register()?;
+                    let (arg_bc, arg_reg) = self.maybe_compile_expr(arg, || Ok(arg_reg))?;
+                    arg_regs.push(arg_reg);
+                    Ok(arg_bc)
+                }).collect::<BytecodeResult>()?;
+
+                let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), || Ok(target_reg))?;
+
+                Ok(bytecode
+                    .combine(callee_bc)
+                    .add(Command::new(Instruction::CallFunc, vec![
+                            Operand::Register(target_reg),
+                            Operand::Register(callee_reg),
+                            Operand::RegistersArray(arg_regs)
+                        ]
+                )))
+            },
             Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Register(self.scopes.get_var(&ident)?.register)),
             Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
+            Expr::Member(member) => {
+                let obj_reg = self.scopes.reserve_register()?;
+                let prop_reg = self.scopes.reserve_register()?;
+
+                let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), || Ok(obj_reg))?;
+
+                Ok(obj_bc
+                    .combine(self.compile_expr(member.property.borrow(), prop_reg)?)
+                    .add(Command::new(Instruction::PropAccess, vec![
+                            Operand::Register(target_reg), Operand::Register(obj_reg), Operand::Register(prop_reg)
+                        ]
+                    )))
+            },
             _ => Err(CompilerError::is_unsupported("Expression type")),
         }
     }
@@ -102,7 +179,7 @@ impl BytecodeCompiler {
         unimplemented!("Functions")
     }
 
-    fn compile_operand_assignment(&mut self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
+    fn compile_operand_assignment(&self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
         Ok(Bytecode::new().add(Command::new(right.get_assign_instr_type(), vec![Operand::Register(left), right])))
     }
 }
@@ -119,7 +196,7 @@ fn test_bytecode_compile_var_decl() {
     assert_eq!(test_expr_ident.compile_var_decl(&VariableKind::Var, &vec![
             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Ident("anotherVar".into()))}
         ]).unwrap(),
-        Bytecode::new().add(Command::new(Instruction::LoadNum,
+        Bytecode::new().add(Command::new(Instruction::Copy,
             vec![Operand::Register(test_expr_ident.scopes.get_var("testVar".into()).unwrap().register),
                  Operand::Register(test_expr_ident_reg)])));
 
@@ -129,5 +206,5 @@ fn test_bytecode_compile_var_decl() {
          ]).unwrap(),
          Bytecode::new().add(Command::new(Instruction::LoadString,
              vec![Operand::Register(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
-                  Operand::Str("TestString".into())])));
+                  Operand::String("TestString".into())])));
 }
