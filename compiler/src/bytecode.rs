@@ -1,7 +1,6 @@
 use crate::error::{CompilerError};
 use std::{u16};
 use std::iter::FromIterator;
-use base64::encode;
 
 pub use resast::prelude::*;
 

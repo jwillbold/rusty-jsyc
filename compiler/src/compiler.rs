@@ -7,6 +7,7 @@ use crate::bytecode::{*};
 pub use resast::prelude::*;
 pub use resast::prelude::Pat::Identifier;
 use std::borrow::Borrow;
+// use std::boxed::Box;
 
 pub type CompilerResult<V> = Result<V, CompilerError>;
 pub type BytecodeResult = Result<Bytecode, CompilerError>;
@@ -20,14 +21,14 @@ pub type BytecodeResult = Result<Bytecode, CompilerError>;
 #[derive(Clone)]
 pub struct BytecodeCompiler
 {
-    scopes: Scopes
+    scopes: Scopes,
 }
 
 impl BytecodeCompiler {
 
     pub fn new() -> Self {
         BytecodeCompiler{
-            scopes: Scopes::new()
+            scopes: Scopes::new(),
         }
     }
 
@@ -109,24 +110,26 @@ impl BytecodeCompiler {
         }
     }
 
-    // fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<(Bytecode, Register), CompilerError> {
-    fn maybe_compile_expr<F>(&mut self, expr: &Expr, mut target_reg_func: F) -> Result<(Bytecode, Register), CompilerError>
-        where F: FnMut() -> CompilerResult<Register>
-    {
-        let target_reg = target_reg_func()?;
-
-        let mut get_reg_by_ident = |ident: &str| {
-            match self.scopes.get_var(ident) {
-                Ok(var) => Ok((Bytecode::new(), var.register)),
-                Err(_) => Ok((self.compile_expr(expr, target_reg)?, target_reg))
-            }
+    fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {
+        let (opt_bytecode, target_reg) = match expr {
+            Expr::Ident(ident) => match self.scopes.get_var(ident) {
+                Ok(var) => (Some(Bytecode::new()), Some(var.register)),
+                Err(_) => (None, target_reg)
+            },
+            _ => (None, target_reg)
         };
 
-        match expr {
-            Expr::Ident(ident) => get_reg_by_ident(&ident),
-            // Expr::Member(member) => get_reg_by_ident(format!("{}.{}", )),
-            _ => Ok((self.compile_expr(expr, target_reg)?, target_reg))
-        }
+        let target_reg = match target_reg {
+            Some(reg) => reg,
+            None => self.scopes.reserve_register()?
+        };
+
+        let bytecode = match opt_bytecode {
+            Some(bc) => bc,
+            None => self.compile_expr(expr, target_reg)?
+        };
+
+        Ok((bytecode, target_reg))
     }
 
     fn compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<Bytecode, CompilerError> {
@@ -135,13 +138,12 @@ impl BytecodeCompiler {
                 let mut arg_regs = Vec::new();
 
                 let bytecode = call.arguments.iter().map(|arg| {
-                    let arg_reg = self.scopes.reserve_register()?;
-                    let (arg_bc, arg_reg) = self.maybe_compile_expr(arg, || Ok(arg_reg))?;
+                    let (arg_bc, arg_reg) = self.maybe_compile_expr(arg, None)?;
                     arg_regs.push(arg_reg);
                     Ok(arg_bc)
                 }).collect::<BytecodeResult>()?;
 
-                let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), || Ok(target_reg))?;
+                let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), Some(target_reg))?;
 
                 Ok(bytecode
                     .combine(callee_bc)
@@ -155,13 +157,13 @@ impl BytecodeCompiler {
             Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Register(self.scopes.get_var(&ident)?.register)),
             Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
             Expr::Member(member) => {
-                let obj_reg = self.scopes.reserve_register()?;
-                let prop_reg = self.scopes.reserve_register()?;
+                let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), None)?;
+                let (prop_bc, prop_reg) =  match member.property.borrow() {
+                    Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(ident.to_string())), None)?,
+                    _ => self.maybe_compile_expr(member.property.borrow(), None)?
+                };
 
-                let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), || Ok(obj_reg))?;
-
-                Ok(obj_bc
-                    .combine(self.compile_expr(member.property.borrow(), prop_reg)?)
+                Ok(obj_bc.combine(prop_bc)
                     .add(Command::new(Instruction::PropAccess, vec![
                             Operand::Register(target_reg), Operand::Register(obj_reg), Operand::Register(prop_reg)
                         ]

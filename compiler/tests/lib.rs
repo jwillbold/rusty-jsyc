@@ -33,6 +33,16 @@ fn test_compile_js_var_decls() {
 }
 
 #[test]
+fn test_member_expr() {
+    let mut compiler = BytecodeCompiler::new();
+    assert!(compiler.add_decl("document".into()).is_ok());
+
+    run_test("var t = document.test", compiler, Bytecode::new()
+                .add(Command::new(Instruction::LoadString, vec![Operand::Register(2), Operand::String("test".into())]))
+                .add(Command::new(Instruction::PropAccess, vec![Operand::Register(1), Operand::Register(0), Operand::Register(2)])))
+}
+
+#[test]
 fn test_compile_js_func_call() {
     let mut compiler = BytecodeCompiler::new();
     assert!(compiler.add_decl("test".into()).is_ok());
@@ -41,20 +51,39 @@ fn test_compile_js_func_call() {
                 .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![])]))
             );
 
-    run_test("test(1);", compiler, Bytecode::new()
-                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(0), Operand::ShortNum(1)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(2), Operand::Register(1), Operand::RegistersArray(vec![
-                        0
-                    ])]))
+    run_test("test(1);", compiler.clone(), Bytecode::new()
+                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(1), Operand::ShortNum(1)]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![1])]))
             );
 
+    // TODO: get rid of the second LoadNum
+    run_test("test(1);test(1);", compiler.clone(), Bytecode::new()
+                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(1), Operand::ShortNum(1)]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![1])]))
+                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(2), Operand::ShortNum(1)]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(2), Operand::Register(0), Operand::RegistersArray(vec![2])]))
+            );
 
-    // let mut compiler1 = BytecodeCompiler::new();
-    // assert!(compiler1.add_decl("document".into()).is_ok());
-    // // assert!(compiler1.add_decl("document.test".into()).is_ok());
-    //
-    // run_test("document.test();", compiler1, Bytecode::new()
-    //             .add(Command::new(Instruction::PropAccess, vec![Operand::Register(1), Operand::Register(0), Operand::String("test".into())]))
-    //             .add(Command::new(Instruction::CallFunc, vec![Operand::Register(2), Operand::Register(1), Operand::RegistersArray(vec![])]))
+    run_test("test(1, 2);", compiler, Bytecode::new()
+                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(1), Operand::ShortNum(1)]))
+                .add(Command::new(Instruction::LoadNum, vec![Operand::Register(2), Operand::ShortNum(2)]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![1, 2])]))
+            );
+
+    // run_test("test(1, 2); test(2, 1);", compiler, Bytecode::new()
+    //             .add(Command::new(Instruction::LoadNum, vec![Operand::Register(1), Operand::ShortNum(1)]))
+    //             .add(Command::new(Instruction::LoadNum, vec![Operand::Register(2), Operand::ShortNum(2)]))
+    //             .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![1, 2])]))
     //         );
+
+
+    let mut compiler_doc = BytecodeCompiler::new();
+    assert!(compiler_doc.add_decl("document".into()).is_ok());
+    // assert!(compiler1.add_decl("document.test".into()).is_ok());
+
+    run_test("document.test();", compiler_doc, Bytecode::new()
+                .add(Command::new(Instruction::LoadString, vec![Operand::Register(1), Operand::String("test".into())]))
+                .add(Command::new(Instruction::PropAccess, vec![Operand::Register(1), Operand::Register(0), Operand::Register(1)]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(1), Operand::RegistersArray(vec![])]))
+            );
 }
