@@ -1,11 +1,12 @@
 use crate::error::{CompilerError};
+use crate::scope::Register;
 use std::{u16};
 use std::iter::FromIterator;
 
 pub use resast::prelude::*;
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Instruction
 {
     LoadString,
@@ -23,6 +24,7 @@ pub enum Instruction
     JumpCond,
 
     Add,
+    // Minus,
     Mul,
 }
 
@@ -47,6 +49,25 @@ impl Instruction {
             Instruction::Mul => 101,
         }
     }
+
+    pub fn from_assignment_op(op: &AssignmentOperator) -> Self {
+        match op {
+            AssignmentOperator::Equal => Instruction::Copy,
+            AssignmentOperator::PlusEqual => Instruction::Add,
+            // AssignmentOperator::MinusEqual => Instruction::Add,
+            AssignmentOperator::TimesEqual => Instruction::Mul,
+            // DivEqual,
+            // ModEqual,
+            // LeftShiftEqual,
+            // RightShiftEqual,
+            // UnsignedRightShiftEqual,
+            // OrEqual,
+            // XOrEqual,
+            // AndEqual,
+            // PowerOfEqual,
+            _ => unimplemented!("The correct branch for the assignment op ist not yet implemented")
+        }
+    }
 }
 
 impl Into<u8> for Instruction {
@@ -60,7 +81,7 @@ fn test_instrution_to_byte() {
     assert_eq!(Instruction::Add.to_byte(), 100);
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Operand
 {
     String(String),
@@ -78,7 +99,7 @@ impl Operand {
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
             Operand::ShortNum(num) | Operand::Register(num) => vec![*num],
-            Operand::RegistersArray(regs) => Operand::encode_bytes_array(&regs)
+            Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs)
         }
     }
 
@@ -112,16 +133,20 @@ impl Operand {
             panic!("The string '{}' is too long. Encoded string may only have 65536 charachters.");
         }
 
-        Operand::encode_bytes_array(string.as_bytes())
-    }
-
-    fn encode_bytes_array(bytes: &[u8]) -> Vec<u8> {
-        if bytes.len() > u16::max_value() as usize {
-            panic!("Too long byte array. Encoded byte arrays may only have 65536 elements.");
-        }
+        let bytes = string.as_bytes();
 
         let mut encoded = vec![(bytes.len() & 0xff00) as u8, (bytes.len() & 0xff) as u8];
         encoded.extend_from_slice(bytes);
+        encoded
+    }
+
+    fn encode_registers_array(regs: &[Register]) -> Vec<u8> {
+        if regs.len() > u8::max_value() as usize {
+            panic!("Too long registers array. Encoded byte arrays may only have 256 elements.");
+        }
+
+        let mut encoded = vec![regs.len() as u8];
+        encoded.extend_from_slice(regs);
         encoded
     }
 
@@ -154,11 +179,11 @@ fn test_encode_string() {
 }
 
 #[test]
-fn test_encode_bytes_array() {
+fn test_encode_registers_array() {
     assert_eq!(Operand::RegistersArray(vec![]).to_bytes(),
-               vec![0, 0]);
+               vec![0]);
    assert_eq!(Operand::RegistersArray(vec![1, 2, 200]).to_bytes(),
-              vec![0, 3, 1, 2, 200]);
+              vec![3, 1, 2, 200]);
 }
 
 #[test]
@@ -179,7 +204,7 @@ fn test_encode_float_num() {
                 vec![191, 241, 249, 114, 71, 69, 56, 239])
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Command
 {
     pub instruction: Instruction,
@@ -221,7 +246,7 @@ fn test_command() {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Bytecode
 {
     pub commands: Vec<Command>
@@ -257,6 +282,17 @@ impl Bytecode {
 
     pub fn encode(&self) -> String {
         base64::encode(&self.to_bytes())
+    }
+
+    pub fn last_op_is_return(&self) -> bool {
+        match self.commands.last() {
+            Some(last_op) => (last_op.instruction == Instruction::ReturnBytecodeFunc),
+            None => false
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
     }
 }
 
@@ -295,4 +331,16 @@ fn test_bytecode_to_bytes() {
                 ]
             },
         ]}.to_bytes(), vec![2, 151, 2, 2, 150, 3,101, 150, 151]);
+}
+
+#[test]
+fn test_last_op_is_return() {
+    assert_eq!(Bytecode::new().last_op_is_return(), false);
+    assert_eq!(Bytecode::new().add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
+    assert_eq!(Bytecode::new()
+                .add(Command::new(Instruction::Copy, vec![Operand::Register(0), Operand::Register(1)]))
+                .add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
+    assert_eq!(Bytecode::new().add(
+            Command::new(Instruction::Copy, vec![Operand::Register(0), Operand::Register(1)])
+        ).last_op_is_return(), false);
 }

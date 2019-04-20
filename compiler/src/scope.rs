@@ -9,6 +9,7 @@ pub struct Declaration
 {
     // pub resast::Decl& ressa_decl,
     pub register: Register,
+    pub is_function: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -34,13 +35,23 @@ impl Scope
         }).collect());
         uses_regs
     }
+
+    // pub fn name_by_register(&self, register: Register) -> Result<String, CompilerError> {
+    //     for (name, decl) in &self.decls {
+    //         if decl.register == register {
+    //             return Ok(name.to_string());
+    //         }
+    //     }
+    //
+    //     Err(CompilerError::Custom(format!("Failed to find name for regitser: {}", register)))
+    // }
 }
 
 #[derive(Debug, Clone)]
 pub struct Scopes
 {
-    scopes: Vec<Scope>,
-    unused_register: VecDeque<Register>
+    pub scopes: Vec<Scope>,
+    pub unused_register: VecDeque<Register>
 }
 
 impl Scopes
@@ -57,6 +68,7 @@ impl Scopes
         self.current_scope_mut()?.decls.insert(decl, Declaration {
             // ressa_decl: decl,
             register: unused_reg,
+            is_function: false
         });
         Ok(unused_reg)
     }
