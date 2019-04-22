@@ -11,6 +11,7 @@ pub mod bytecode;
 pub mod jshelper;
 pub mod compiler;
 pub mod scope;
+pub mod instruction_set;
 
 pub use crate::jshelper::{JSSourceCode, JSAst};
 pub use crate::error::{CompilerError};

@@ -3,6 +3,7 @@ use std::collections::*;
 use crate::error::{CompilerError};
 
 pub type Register = u8;
+pub type Reg = Register;
 
 #[derive(Debug, Clone)]
 pub struct Declaration
@@ -12,6 +13,14 @@ pub struct Declaration
     pub is_function: bool,
 }
 
+// #[derive(Hash, Debug, Clone, PartialEq, Eq)]
+// pub enum CommonLiterals {
+//     Zero,
+//     One,
+//     Undefined,
+//     EmptyString
+// }
+
 #[derive(Debug, Clone)]
 pub struct Scope
 {
@@ -19,13 +28,19 @@ pub struct Scope
     pub unnamed_reserved_registers: VecDeque<Register>,
 }
 
-impl Scope
-{
+impl Scope {
     pub fn new() -> Self {
-        Scope{
+        Scope {
             decls: HashMap::new(),
-            unnamed_reserved_registers: VecDeque::new()
+            unnamed_reserved_registers: VecDeque::new(),
         }
+    }
+
+    pub fn derive_scope(parent_scope: &Scope) -> Result<Self, CompilerError> {
+        Ok(Scope {
+            decls: parent_scope.decls.clone(),
+            unnamed_reserved_registers: VecDeque::new(),
+        })
     }
 
     pub fn used_registers(self) -> VecDeque<Register> {
@@ -51,7 +66,8 @@ impl Scope
 pub struct Scopes
 {
     pub scopes: Vec<Scope>,
-    pub unused_register: VecDeque<Register>
+    pub unused_register: VecDeque<Register>,
+    // pub common_literals: HashMap<CommonLiterals, Register>
 }
 
 impl Scopes
@@ -59,7 +75,8 @@ impl Scopes
     pub fn new() -> Scopes {
         Scopes {
             scopes: vec![ Scope::new() ],
-            unused_register: (0..Register::max_value()).collect()
+            unused_register: (0..Register::max_value()).collect(),
+            // common_literals: HashMap::new()
         }
     }
 
@@ -77,6 +94,10 @@ impl Scopes
         self.get_unused_register()
     }
 
+    pub fn reserve_register_back(&mut self) -> Result<Register, CompilerError> {
+        self.get_unused_register_back()
+    }
+
     pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
         self.unused_register.front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
@@ -90,10 +111,7 @@ impl Scopes
     }
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
-        Ok(self.scopes.push(Scope {
-            decls: self.current_scope()?.decls.clone(),
-            unnamed_reserved_registers: VecDeque::new()
-        }))
+        Ok(self.scopes.push(Scope::derive_scope(self.current_scope()?)?))
     }
 
     pub fn current_scope(&self) -> Result<&Scope, CompilerError> {
@@ -117,7 +135,13 @@ impl Scopes
 
     fn get_unused_register(&mut self) -> Result<Register, CompilerError> {
         self.unused_register.pop_front().ok_or(
-            CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
+            CompilerError::Custom("All registers are in use. Free up some registers".into())
+        )
+    }
+
+    fn get_unused_register_back(&mut self) -> Result<Register, CompilerError> {
+        self.unused_register.pop_back().ok_or(
+            CompilerError::Custom("All registers are in use. Free up some registers".into())
         )
     }
 }

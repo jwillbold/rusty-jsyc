@@ -3,6 +3,7 @@ use crate::jshelper::{JSSourceCode, JSAst};
 use crate::bytecode::{Bytecode};
 use crate::scope::*;
 use crate::bytecode::{*};
+use crate::instruction_set::InstructionSet;
 
 pub use resast::prelude::*;
 pub use resast::prelude::Pat::Identifier;
@@ -12,10 +13,6 @@ use std::borrow::Borrow;
 pub type CompilerResult<V> = Result<V, CompilerError>;
 pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
-
-// pub struct ImportantRegisters {
-//     undefined: Register,
-// }
 
 #[derive(Clone)]
 pub struct BytecodeFunction
@@ -29,7 +26,8 @@ pub struct BytecodeFunction
 pub struct BytecodeCompiler
 {
     scopes: Scopes,
-    functions: Vec<BytecodeFunction>
+    functions: Vec<BytecodeFunction>,
+    isa: InstructionSet,
 }
 
 impl BytecodeCompiler {
@@ -37,7 +35,8 @@ impl BytecodeCompiler {
     pub fn new() -> Self {
         BytecodeCompiler{
             scopes: Scopes::new(),
-            functions: Vec::new()
+            functions: Vec::new(),
+            isa: InstructionSet::default(),
         }
     }
 
@@ -52,7 +51,7 @@ impl BytecodeCompiler {
         };
 
         let bytecode = match ast.ast {
-            resast::Program::Mod(_) => { return Err(CompilerError::Custom("ES6 Modules are not supported".into())); },
+            resast::Program::Mod(_) => { return Err(CompilerError::are_unsupported("ES6 modules")); },
             resast::Program::Script(s) => {
                 s.iter().map(|part| {
                     self.compile_program_part(part)
@@ -73,7 +72,7 @@ impl BytecodeCompiler {
 
     fn compile_program_part(&mut self, progrm_part: &ProgramPart) -> BytecodeResult {
         match progrm_part {
-            resast::ProgramPart::Dir(_) => Err(CompilerError::Custom("Directives are not supported".into())),
+            resast::ProgramPart::Dir(_) => Err(CompilerError::are_unsupported("Directives")),
             resast::ProgramPart::Decl(decl) => self.compile_decl(&decl),
             resast::ProgramPart::Stmt(stmt) => self.compile_stmt(&stmt)
         }
@@ -212,8 +211,8 @@ impl BytecodeCompiler {
             Expr::Super => Err(CompilerError::are_unsupported("'super' expressions")),
             Expr::TaggedTemplate(_) => Err(CompilerError::are_unsupported("tagged template expressions")),
             // Expr::This =>
-            // Expr::Update(new) =>
-            // Expr::Unary(new) =>
+            Expr::Update(update) => self.compile_update_expr(update, target_reg),
+            Expr::Unary(unary) => self.compile_unary_expr(unary, target_reg),
             Expr::Yield(_) => Err(CompilerError::are_unsupported("'yield' expressions")),
             _ => Err(CompilerError::is_unsupported("Expression type")),
         }
@@ -265,14 +264,27 @@ impl BytecodeCompiler {
             }
             _ => {
                 let (right_bc, right_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
-
-                Ok(left_bc.combine(right_bc).add(
-                    Command::new(Instruction::from_assignment_op(&assign.operator),
-                                 vec![Operand::Register(left_reg), Operand::Register(left_reg),
-                                      Operand::Register(right_reg)])
-                    )
-                )
+                Ok(left_bc.combine(right_bc)
+                    .add(self.isa.assignment_op(&assign.operator, left_reg, right_reg)))
             }
+        }
+    }
+
+    fn compile_update_expr(&mut self, update: &UpdateExpr, _target_reg: Register) -> BytecodeResult {
+        if update.prefix {
+            let (arg_bc, arg_reg) = self.maybe_compile_expr(update.argument.borrow(), None)?;
+            Ok(arg_bc.add(self.isa.update_op(&update.operator, arg_reg)))
+        } else {
+            Err(CompilerError::are_unsupported("suffix update expressions"))
+        }
+    }
+
+    fn compile_unary_expr(&mut self, unary: &UnaryExpr, target_reg: Register) -> BytecodeResult {
+        if unary.prefix {
+            let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
+            Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)))
+        } else {
+            Err(CompilerError::are_unsupported("suffix unary expressions"))
         }
     }
 

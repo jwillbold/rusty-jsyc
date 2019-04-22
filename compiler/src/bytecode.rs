@@ -24,7 +24,7 @@ pub enum Instruction
     JumpCond,
 
     Add,
-    // Minus,
+    Minus,
     Mul,
 }
 
@@ -46,6 +46,7 @@ impl Instruction {
             Instruction::JumpCond => 17,
 
             Instruction::Add => 100,
+            Instruction::Minus => 102,
             Instruction::Mul => 101,
         }
     }
@@ -54,7 +55,7 @@ impl Instruction {
         match op {
             AssignmentOperator::Equal => Instruction::Copy,
             AssignmentOperator::PlusEqual => Instruction::Add,
-            // AssignmentOperator::MinusEqual => Instruction::Add,
+            AssignmentOperator::MinusEqual => Instruction::Minus,
             AssignmentOperator::TimesEqual => Instruction::Mul,
             // DivEqual,
             // ModEqual,
@@ -68,6 +69,13 @@ impl Instruction {
             _ => unimplemented!("The correct branch for the assignment op ist not yet implemented")
         }
     }
+
+    // pub fn from_update_ip(op: &UpdateOperator) -> Self {
+    //     match op {
+    //         UpdateOperator::Increment =>
+    //         UpdateOperator::Decrement
+    //     }
+    // }
 }
 
 impl Into<u8> for Instruction {
