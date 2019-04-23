@@ -54,15 +54,15 @@ fn test_compile_js_decls() {
     );
     run_test("function foo(a) {return a;}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![1])]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![0])]))
     );
     // run_test("function foo(a, b) {return a+b;}", BytecodeCompiler::new(), Bytecode::new()
         // .add(Command::new(Instruction::Exit, vec![]))
     // );
     run_test("function foo(a, b) {a+=b; return a;}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::Add, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(2)]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![1])]))
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(1)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![0])]))
     );
 
     check_is_error("class C {}", BytecodeCompiler::new());
@@ -87,14 +87,14 @@ fn test_bytecode_func_calls() {
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
     );
 
-    // run_test("function foo() {var a = 5;}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
-    //     .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
-    //     .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(24)]))
-    //     .add(Command::new(Instruction::Exit, vec![]))
-    //     .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(5)]))
-    //     .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
-    //     .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
-    // );
+    run_test("function foo() {var a = 5;}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(24)]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(5)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    );
 }
 
 #[test]

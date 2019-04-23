@@ -219,7 +219,7 @@ impl BytecodeCompiler {
     fn compile_call_expr(&mut self, call: &CallExpr, target_reg: Register) -> BytecodeResult {
         match call.callee.borrow() {
             Expr::Ident(ident) => {
-                if self.scopes.get_var(ident)?.is_function() {
+                if self.functions.iter().any(|func| func.ident==*ident) {
                     self.compile_bytecode_func_call(ident.to_string(), &call.arguments, target_reg)
                 } else {
                     self.compile_extern_func_call(call, target_reg)
@@ -304,10 +304,6 @@ impl BytecodeCompiler {
     fn compile_func(&mut self, func: &Function) -> Result<Bytecode, CompilerError> {
         if func.generator || func.is_async {
             return Err(CompilerError::are_unsupported("generator and async functions"))
-        }
-
-        if let Some(ident) = &func.id {
-            self.scopes.add_func_decl(ident.to_string())?;
         }
 
         self.scopes.enter_new_scope()?;
