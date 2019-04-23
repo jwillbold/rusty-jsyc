@@ -82,7 +82,7 @@ pub enum Operand
     FloatNum(f64),
     LongNum(i64),
     ShortNum(u8),
-    Register(u8),
+    Reg(u8),
     RegistersArray(Vec<u8>),
 
     SubstituteToken(OperandSubstituteToken)
@@ -94,7 +94,7 @@ impl Operand {
             Operand::String(string) => Operand::encode_string(string.to_string()),
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
-            Operand::ShortNum(num) | Operand::Register(num) => vec![*num],
+            Operand::ShortNum(num) | Operand::Reg(num) => vec![*num],
             Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
             Operand::SubstituteToken(token) => token.to_bytes()
         }
@@ -102,7 +102,7 @@ impl Operand {
 
     pub fn from_literal(lit: Literal) -> Result<Self, CompilerError> {
         match lit {
-            Literal::Null => Ok(Operand::Register(0)), //TODO: Register of predefined void 0,
+            Literal::Null => Ok(Operand::Reg(0)), //TODO: Register of predefined void 0,
             Literal::String(string) => Ok(Operand::String(string)),
             Literal::Number(num) => Ok(Operand::ShortNum(num.parse().unwrap())), //TODO
             Literal::Boolean(bool) => Ok(Operand::ShortNum(bool as u8)),
@@ -230,8 +230,8 @@ fn test_command() {
     assert_eq!(Command{
         instruction: Instruction::Add,
         operands:vec![
-            Operand::Register(150),
-            Operand::Register(151),
+            Operand::Reg(150),
+            Operand::Reg(151),
         ]
     }.to_bytes(),
     vec![100, 150, 151]);
@@ -309,22 +309,22 @@ fn test_bytecode_to_bytes() {
             Command{
                 instruction: Instruction::LoadNum,
                 operands: vec![
-                    Operand::Register(151),
+                    Operand::Reg(151),
                     Operand::ShortNum(2),
                 ]
             },
             Command{
                 instruction: Instruction::LoadNum,
                 operands: vec![
-                    Operand::Register(150),
+                    Operand::Reg(150),
                     Operand::ShortNum(3),
                 ]
             },
             Command{
                 instruction: Instruction::Mul,
                 operands: vec![
-                    Operand::Register(150),
-                    Operand::Register(151),
+                    Operand::Reg(150),
+                    Operand::Reg(151),
                 ]
             },
         ]}.to_bytes(), vec![2, 151, 2, 2, 150, 3,101, 150, 151]);
@@ -335,9 +335,9 @@ fn test_last_op_is_return() {
     assert_eq!(Bytecode::new().last_op_is_return(), false);
     assert_eq!(Bytecode::new().add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
     assert_eq!(Bytecode::new()
-                .add(Command::new(Instruction::Copy, vec![Operand::Register(0), Operand::Register(1)]))
+                .add(Command::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)]))
                 .add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
     assert_eq!(Bytecode::new().add(
-            Command::new(Instruction::Copy, vec![Operand::Register(0), Operand::Register(1)])
+            Command::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)])
         ).last_op_is_return(), false);
 }

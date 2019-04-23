@@ -23,12 +23,12 @@ impl InstructionSet {
             Operand::FloatNum(_) => Instruction::LoadFloatNum,
             Operand::LongNum(_) => Instruction::LoadLongNum,
             Operand::ShortNum(_) => Instruction::LoadNum,
-            Operand::Register(_) => Instruction::Copy,
+            Operand::Reg(_) => Instruction::Copy,
             Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation"),
             Operand::SubstituteToken(_) => unimplemented!("...")
         };
 
-        Command::new(instruction, vec![Operand::Register(left), right])
+        Command::new(instruction, vec![Operand::Reg(left), right])
     }
 
     pub fn assignment_op(&self, op: &AssignmentOperator, rd: Reg, rs: Reg) -> Command {
@@ -49,7 +49,7 @@ impl InstructionSet {
             _ => unimplemented!("The correct branch for the assignment op ist not yet implemented")
         };
 
-        Command::new(instr, vec![Operand::Register(rd), Operand::Register(rd), Operand::Register(rs)])
+        Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(rd), Operand::Reg(rs)])
     }
 
     pub fn update_op(&self, op: &UpdateOperator, rd: Reg) -> Command {
@@ -59,7 +59,7 @@ impl InstructionSet {
         };
 
         // TODO
-        Command::new(instr, vec![Operand::Register(rd), Operand::Register(rd), Operand::Register(255)])
+        Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(rd), Operand::Reg(255)])
     }
 
     pub fn unary_op(&self, op: &UnaryOperator, rd: Reg, rs: Reg) -> Command {

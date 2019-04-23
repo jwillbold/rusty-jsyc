@@ -197,7 +197,7 @@ impl BytecodeCompiler {
             Expr::Call(call) => self.compile_call_expr(call, target_reg),
             // Expr::Conditional(cond) =>
             Expr::Function(_) => Err(CompilerError::are_unsupported("function expressions")),
-            Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Register(self.scopes.get_var(&ident)?.register)),
+            Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Reg(self.scopes.get_var(&ident)?.register)),
             Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
             // Expr::Logical(logical) =>
             Expr::Member(member) => self.compile_member_expr(member, target_reg),
@@ -244,8 +244,8 @@ impl BytecodeCompiler {
         Ok(bytecode.into_iter().collect::<Bytecode>()
             .combine(callee_bc)
             .add(Command::new(Instruction::CallFunc, vec![
-                    Operand::Register(target_reg),
-                    Operand::Register(callee_reg),
+                    Operand::Reg(target_reg),
+                    Operand::Reg(callee_reg),
                     Operand::RegistersArray(arg_regs)
                 ]
         )))
@@ -260,7 +260,7 @@ impl BytecodeCompiler {
 
         Ok(obj_bc.combine(prop_bc)
             .add(Command::new(Instruction::PropAccess, vec![
-                    Operand::Register(target_reg), Operand::Register(obj_reg), Operand::Register(prop_reg)
+                    Operand::Reg(target_reg), Operand::Reg(obj_reg), Operand::Reg(prop_reg)
                 ]
             )))
     }
@@ -391,15 +391,15 @@ fn test_bytecode_compile_var_decl() {
             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Ident("anotherVar".into()))}
         ]).unwrap(),
         Bytecode::new().add(Command::new(Instruction::Copy,
-            vec![Operand::Register(test_expr_ident.scopes.get_var("testVar".into()).unwrap().register),
-                 Operand::Register(test_expr_ident_reg)])));
+            vec![Operand::Reg(test_expr_ident.scopes.get_var("testVar".into()).unwrap().register),
+                 Operand::Reg(test_expr_ident_reg)])));
 
      let mut test_expr_str_lit = BytecodeCompiler::new();
      assert_eq!(test_expr_str_lit.compile_var_decl(&VariableKind::Var, &vec![
              VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Literal(Literal::String("TestString".into())))}
          ]).unwrap(),
          Bytecode::new().add(Command::new(Instruction::LoadString,
-             vec![Operand::Register(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
+             vec![Operand::Reg(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
                   Operand::String("TestString".into())])));
 }
 
