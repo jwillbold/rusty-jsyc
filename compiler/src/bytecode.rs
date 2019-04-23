@@ -50,32 +50,6 @@ impl Instruction {
             Instruction::Mul => 101,
         }
     }
-
-    pub fn from_assignment_op(op: &AssignmentOperator) -> Self {
-        match op {
-            AssignmentOperator::Equal => Instruction::Copy,
-            AssignmentOperator::PlusEqual => Instruction::Add,
-            AssignmentOperator::MinusEqual => Instruction::Minus,
-            AssignmentOperator::TimesEqual => Instruction::Mul,
-            // DivEqual,
-            // ModEqual,
-            // LeftShiftEqual,
-            // RightShiftEqual,
-            // UnsignedRightShiftEqual,
-            // OrEqual,
-            // XOrEqual,
-            // AndEqual,
-            // PowerOfEqual,
-            _ => unimplemented!("The correct branch for the assignment op ist not yet implemented")
-        }
-    }
-
-    // pub fn from_update_ip(op: &UpdateOperator) -> Self {
-    //     match op {
-    //         UpdateOperator::Increment =>
-    //         UpdateOperator::Decrement
-    //     }
-    // }
 }
 
 impl Into<u8> for Instruction {
@@ -90,6 +64,18 @@ fn test_instrution_to_byte() {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct OperandSubstituteToken {
+    pub ident: String,
+    pub length: u32
+}
+
+impl OperandSubstituteToken {
+    fn to_bytes(&self) -> Vec<u8> {
+        vec![0; self.length as usize]
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Operand
 {
     String(String),
@@ -98,6 +84,8 @@ pub enum Operand
     ShortNum(u8),
     Register(u8),
     RegistersArray(Vec<u8>),
+
+    SubstituteToken(OperandSubstituteToken)
 }
 
 impl Operand {
@@ -107,7 +95,8 @@ impl Operand {
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
             Operand::ShortNum(num) | Operand::Register(num) => vec![*num],
-            Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs)
+            Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
+            Operand::SubstituteToken(token) => token.to_bytes()
         }
     }
 
@@ -121,19 +110,14 @@ impl Operand {
         }
     }
 
-    pub fn get_assign_instr_type(&self) -> Instruction {
-        match *self {
-            Operand::String(_) => Instruction::LoadString,
-            Operand::FloatNum(_) => Instruction::LoadFloatNum,
-            Operand::LongNum(_) => Instruction::LoadLongNum,
-            Operand::ShortNum(_) => Instruction::LoadNum,
-            Operand::Register(_) => Instruction::Copy,
-            Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation")
-        }
-    }
-
     pub fn str(string: String) -> Self {
         Operand::String(string.to_string())
+    }
+
+    pub fn token(ident: String, length: u32) -> Self {
+        Operand::SubstituteToken(OperandSubstituteToken{
+            ident, length
+        })
     }
 
     fn encode_string(string: String) -> Vec<u8> {
@@ -286,6 +270,11 @@ impl Bytecode {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         self.commands.iter().map(|line| line.to_bytes()).flatten().collect()
+    }
+
+    pub fn length_in_bytes(&self) -> usize {
+        //TODO; This can be implemented smarter
+        self.to_bytes().len()
     }
 
     pub fn encode(&self) -> String {

@@ -17,6 +17,20 @@ impl InstructionSet {
         }
     }
 
+    pub fn load_op(&self, left: Reg, right: Operand) -> Command {
+        let instruction = match right {
+            Operand::String(_) => Instruction::LoadString,
+            Operand::FloatNum(_) => Instruction::LoadFloatNum,
+            Operand::LongNum(_) => Instruction::LoadLongNum,
+            Operand::ShortNum(_) => Instruction::LoadNum,
+            Operand::Register(_) => Instruction::Copy,
+            Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation"),
+            Operand::SubstituteToken(_) => unimplemented!("...")
+        };
+
+        Command::new(instruction, vec![Operand::Register(left), right])
+    }
+
     pub fn assignment_op(&self, op: &AssignmentOperator, rd: Reg, rs: Reg) -> Command {
         let instr = match op {
             AssignmentOperator::Equal => Instruction::Copy,

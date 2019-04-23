@@ -13,6 +13,12 @@ pub struct Declaration
     pub is_function: bool,
 }
 
+impl Declaration {
+    pub fn is_function(&self) -> bool {
+        self.is_function
+    }
+}
+
 // #[derive(Hash, Debug, Clone, PartialEq, Eq)]
 // pub enum CommonLiterals {
 //     Zero,
@@ -80,12 +86,19 @@ impl Scopes
         }
     }
 
-    pub fn add_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+    pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+        self.add_decl(decl, false)
+    }
+
+    pub fn add_func_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+        self.add_decl(decl, true)
+    }
+
+    pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
         self.current_scope_mut()?.decls.insert(decl, Declaration {
-            // ressa_decl: decl,
             register: unused_reg,
-            is_function: false
+            is_function: is_function
         });
         Ok(unused_reg)
     }
@@ -150,11 +163,11 @@ impl Scopes
 fn test_scopes() {
     let mut scopes = Scopes::new();
 
-    let r0 = scopes.add_decl("globalVar".into()).unwrap();
+    let r0 = scopes.add_var_decl("globalVar".into()).unwrap();
 
     scopes.enter_new_scope().unwrap();
-        let r1 = scopes.add_decl("testVar".into()).unwrap();
-        let r2 = scopes.add_decl("anotherVar".into()).unwrap();
+        let r1 = scopes.add_var_decl("testVar".into()).unwrap();
+        let r2 = scopes.add_var_decl("anotherVar".into()).unwrap();
         assert_ne!(r0, r1);
         assert_ne!(r1, r2);
         assert_eq!(scopes.get_var("testVar").unwrap().register, r1);

@@ -72,10 +72,36 @@ fn test_compile_js_decls() {
 }
 
 #[test]
+fn test_bytecode_func_calls() {
+    run_test("function test() {}; test();", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(10)]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    );
+
+    run_test("function foo() {}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(21)]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    );
+
+    // run_test("function foo() {var a = 5;}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
+    //     .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
+    //     .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(24)]))
+    //     .add(Command::new(Instruction::Exit, vec![]))
+    //     .add(Command::new(Instruction::LoadNum, vec![Operand::Register(0), Operand::ShortNum(5)]))
+    //     .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    //     .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    // );
+}
+
+#[test]
 fn test_assigmnet_expr() {
     let mut compiler = BytecodeCompiler::new();
-    assert!(compiler.add_decl("a".into()).is_ok());
-    assert!(compiler.add_decl("b".into()).is_ok());
+    assert!(compiler.add_var_decl("a".into()).is_ok());
+    assert!(compiler.add_var_decl("b".into()).is_ok());
 
     run_test("a+=b;", compiler.clone(), Bytecode::new()
         .add(Command::new(Instruction::Add, vec![Operand::Register(0), Operand::Register(0), Operand::Register(1)]))
@@ -89,7 +115,7 @@ fn test_assigmnet_expr() {
 #[test]
 fn test_member_expr() {
     let mut compiler = BytecodeCompiler::new();
-    assert!(compiler.add_decl("document".into()).is_ok());
+    assert!(compiler.add_var_decl("document".into()).is_ok());
 
     run_test("var t = document.test", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadString, vec![Operand::Register(2), Operand::String("test".into())]))
@@ -104,8 +130,8 @@ fn test_member_expr() {
 
     // Assignment expression 'equal'
     let mut assignments_compiler = BytecodeCompiler::new();
-    assert!(assignments_compiler.add_decl("test".into()).is_ok());
-    assert!(assignments_compiler.add_decl("foo".into()).is_ok());
+    assert!(assignments_compiler.add_var_decl("test".into()).is_ok());
+    assert!(assignments_compiler.add_var_decl("foo".into()).is_ok());
 
     run_test("test = 0;", assignments_compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadNum, vec![Operand::Register(0), Operand::ShortNum(0)])));
@@ -116,7 +142,7 @@ fn test_member_expr() {
 #[test]
 fn test_compile_js_func_call() {
     let mut compiler = BytecodeCompiler::new();
-    assert!(compiler.add_decl("test".into()).is_ok());
+    assert!(compiler.add_var_decl("test".into()).is_ok());
 
     run_test("test();", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::CallFunc, vec![Operand::Register(1), Operand::Register(0), Operand::RegistersArray(vec![])]))
@@ -149,8 +175,8 @@ fn test_compile_js_func_call() {
 
 
     let mut compiler_doc = BytecodeCompiler::new();
-    assert!(compiler_doc.add_decl("document".into()).is_ok());
-    // assert!(compiler1.add_decl("document.test".into()).is_ok());
+    assert!(compiler_doc.add_var_decl("document".into()).is_ok());
+    // assert!(compiler1.add_var_decl("document.test".into()).is_ok());
 
     run_test("document.test();", compiler_doc, Bytecode::new()
                 .add(Command::new(Instruction::LoadString, vec![Operand::Register(1), Operand::String("test".into())]))
