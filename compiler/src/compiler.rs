@@ -230,6 +230,11 @@ impl BytecodeCompiler {
     }
 
     fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], target_reg: Reg) -> BytecodeResult {
+
+        let args_bytecode = args.iter().map(|arg_expr| {
+            self.maybe_compile_expr(arg_expr, Some())
+        });
+
         Ok(Bytecode::new()
             .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::token(func, 8)])))
     }

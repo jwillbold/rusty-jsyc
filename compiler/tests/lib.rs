@@ -95,6 +95,13 @@ fn test_bytecode_func_calls() {
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
     );
+
+    run_test("function testy(a) {return a;} testy(10);", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(10)]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![0])]))
+    );
 }
 
 #[test]
