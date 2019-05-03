@@ -25,7 +25,8 @@ impl InstructionSet {
             Operand::ShortNum(_) => Instruction::LoadNum,
             Operand::Reg(_) => Instruction::Copy,
             Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation"),
-            Operand::SubstituteToken(_) => unimplemented!("...")
+            Operand::FunctionAddr(_) |
+            Operand::BranchAddr(_) => unimplemented!("...")
         };
 
         Command::new(instruction, vec![Operand::Reg(left), right])

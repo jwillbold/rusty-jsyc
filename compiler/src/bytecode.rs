@@ -5,6 +5,13 @@ use std::iter::FromIterator;
 
 pub use resast::prelude::*;
 
+pub trait ToBytes {
+    fn to_bytes(&self) -> Vec<u8>;
+    fn length_in_bytes(&self) -> usize {
+        self.to_bytes().len()
+    }
+}
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction
@@ -22,6 +29,7 @@ pub enum Instruction
     Copy,
     Exit,
     JumpCond,
+    Jump,
 
     Add,
     Minus,
@@ -44,17 +52,12 @@ impl Instruction {
             Instruction::Copy => 15,
             Instruction::Exit => 16,
             Instruction::JumpCond => 17,
+            Instruction::Jump => 18,
 
             Instruction::Add => 100,
             Instruction::Minus => 102,
             Instruction::Mul => 101,
         }
-    }
-}
-
-impl Into<u8> for Instruction {
-    fn into(self) -> u8 {
-        self.to_byte()
     }
 }
 
@@ -64,16 +67,27 @@ fn test_instrution_to_byte() {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct OperandSubstituteToken {
-    pub ident: String,
-    pub length: u32
+pub struct BytecodeAddrToken {
+    pub ident: String
 }
 
-impl OperandSubstituteToken {
+impl ToBytes for BytecodeAddrToken {
     fn to_bytes(&self) -> Vec<u8> {
-        vec![0; self.length as usize]
+        vec![0; 8]
     }
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct LabelAddrToken {
+    pub label: Label
+}
+
+impl ToBytes for LabelAddrToken {
+    fn to_bytes(&self) -> Vec<u8> {
+        vec![0; 8]
+    }
+}
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operand
@@ -85,7 +99,8 @@ pub enum Operand
     Reg(u8),
     RegistersArray(Vec<u8>),
 
-    SubstituteToken(OperandSubstituteToken)
+    FunctionAddr(BytecodeAddrToken),
+    BranchAddr(LabelAddrToken)
 }
 
 impl Operand {
@@ -94,9 +109,11 @@ impl Operand {
             Operand::String(string) => Operand::encode_string(string.to_string()),
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
-            Operand::ShortNum(num) | Operand::Reg(num) => vec![*num],
+            Operand::ShortNum(num) | 
+            Operand::Reg(num) => vec![*num],
             Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
-            Operand::SubstituteToken(token) => token.to_bytes()
+            Operand::FunctionAddr(token)  => token.to_bytes(),
+            Operand::BranchAddr(token) => token.to_bytes()
         }
     }
 
@@ -114,10 +131,12 @@ impl Operand {
         Operand::String(string.to_string())
     }
 
-    pub fn token(ident: String, length: u32) -> Self {
-        Operand::SubstituteToken(OperandSubstituteToken{
-            ident, length
-        })
+    pub fn function_addr(ident: String) -> Self {
+        Operand::FunctionAddr(BytecodeAddrToken{ ident })
+    }
+
+    pub fn branch_addr(label: Label) -> Self {
+        Operand::BranchAddr(LabelAddrToken{ label })
     }
 
     fn encode_string(string: String) -> Vec<u8> {
@@ -155,12 +174,6 @@ impl Operand {
 
     fn encode_float_num(num: f64) -> Vec<u8> {
         Operand::encode_long_num(num.to_bits())
-    }
-}
-
-impl Into<Vec<u8>> for Operand {
-    fn into(self) -> Vec<u8> {
-        self.to_bytes()
     }
 }
 
@@ -204,24 +217,19 @@ pub struct Command
 }
 
 impl Command {
-
     pub fn new(instruction: Instruction, operands: Vec<Operand>) -> Self {
         Command {
             instruction,
             operands
         }
     }
+}
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl ToBytes for Command {
+    fn to_bytes(&self) -> Vec<u8> {
         let mut line = vec![self.instruction.to_byte()];
         line.append(&mut self.operands.iter().map(|operand| operand.to_bytes()).flatten().collect::<Vec<u8>>());
         line
-    }
-}
-
-impl Into<Vec<u8>> for Command {
-    fn into(self) -> Vec<u8> {
-        self.to_bytes()
     }
 }
 
@@ -238,10 +246,28 @@ fn test_command() {
 }
 
 
+pub type Label = u32;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum BytecodeElement
+{
+    Command(Command),
+    Label(Label)
+}
+
+impl ToBytes for BytecodeElement {
+    fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            BytecodeElement::Command(cmd) => cmd.to_bytes(),
+            BytecodeElement::Label(_) => vec![]
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Bytecode
 {
-    pub commands: Vec<Command>
+    pub elements: Vec<BytecodeElement>,
 }
 
 impl std::fmt::Display for Bytecode {
@@ -254,27 +280,23 @@ impl Bytecode {
 
     pub fn new() -> Self {
         Bytecode {
-            commands: vec![]
+            elements: vec![]
         }
     }
 
     pub fn add(mut self, command: Command) -> Self {
-        self.commands.push(command);
+        self.elements.push(BytecodeElement::Command(command));
+        self
+    }
+
+    pub fn add_label(mut self, label: Label) -> Self {
+        self.elements.push(BytecodeElement::Label(label));
         self
     }
 
     pub fn combine(mut self, mut other: Bytecode) -> Self {
-        self.commands.append(&mut other.commands);
+        self.elements.append(&mut other.elements);
         self
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.commands.iter().map(|line| line.to_bytes()).flatten().collect()
-    }
-
-    pub fn length_in_bytes(&self) -> usize {
-        //TODO; This can be implemented smarter
-        self.to_bytes().len()
     }
 
     pub fn encode(&self) -> String {
@@ -282,52 +304,65 @@ impl Bytecode {
     }
 
     pub fn last_op_is_return(&self) -> bool {
-        match self.commands.last() {
-            Some(last_op) => (last_op.instruction == Instruction::ReturnBytecodeFunc),
+        match self.elements.last() {
+            Some(last_element) => match last_element {
+                BytecodeElement::Command(cmd) => (cmd.instruction == Instruction::ReturnBytecodeFunc),
+                _ => false
+            },
             None => false
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.commands.is_empty()
+    pub fn commands_iter_mut(&mut self) -> impl std::iter::Iterator<Item = &mut Command> {
+        self.elements.iter_mut().filter_map(|element| match element {
+            BytecodeElement::Command(cmd) => Some(cmd),
+            BytecodeElement::Label(_) => None
+        })
     }
 }
 
 impl FromIterator<Bytecode> for Bytecode {
     fn from_iter<I: IntoIterator<Item=Bytecode>>(iter: I) -> Self {
         Bytecode {
-            commands: iter.into_iter().flat_map(|bc| bc.commands).collect()
+            elements: iter.into_iter().flat_map(|bc| bc.elements).collect()
         }
+    }
+}
+
+impl ToBytes for Bytecode {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.elements.iter().map(|element| element.to_bytes()).flatten().collect()
     }
 }
 
 
 #[test]
 fn test_bytecode_to_bytes() {
-    assert_eq!(Bytecode{ commands: vec![] }.to_bytes().len(), 0);
-    assert_eq!(Bytecode{ commands: vec![
-            Command{
-                instruction: Instruction::LoadNum,
-                operands: vec![
-                    Operand::Reg(151),
-                    Operand::ShortNum(2),
-                ]
-            },
-            Command{
-                instruction: Instruction::LoadNum,
-                operands: vec![
-                    Operand::Reg(150),
-                    Operand::ShortNum(3),
-                ]
-            },
-            Command{
-                instruction: Instruction::Mul,
-                operands: vec![
-                    Operand::Reg(150),
-                    Operand::Reg(151),
-                ]
-            },
-        ]}.to_bytes(), vec![2, 151, 2, 2, 150, 3,101, 150, 151]);
+    assert_eq!(Bytecode::new().to_bytes().len(), 0);
+    assert_eq!(Bytecode{ elements: vec![
+        BytecodeElement::Command(Command{
+            instruction: Instruction::LoadNum,
+            operands: vec![
+                Operand::Reg(151),
+                Operand::ShortNum(2),
+            ]
+        }),
+        BytecodeElement::Command(Command{
+            instruction: Instruction::LoadNum,
+            operands: vec![
+                Operand::Reg(150),
+                Operand::ShortNum(3),
+            ]
+        }),
+        BytecodeElement::Command(Command{
+            instruction: Instruction::Mul,
+            operands: vec![
+                Operand::Reg(150),
+                Operand::Reg(151),
+            ]
+        }),
+        ]
+    }.to_bytes(), vec![2, 151, 2, 2, 150, 3,101, 150, 151]);
 }
 
 #[test]

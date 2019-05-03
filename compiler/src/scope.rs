@@ -143,7 +143,12 @@ impl Scopes
         let scope = self.scopes.pop().ok_or(
             CompilerError::Custom("Cannot leave inextsiting scope".into())
         )?;
-        Ok(self.unused_register.append(&mut scope.used_registers()))
+
+        // TODO: This is probabbly possible with less push-calls
+        for reg in scope.used_registers().into_iter().rev() {
+            self.unused_register.push_front(reg);
+        }
+        Ok(())
     }
 
     fn get_unused_register(&mut self) -> Result<Register, CompilerError> {

@@ -25,11 +25,32 @@ pub struct BytecodeFunction
 }
 
 #[derive(Clone)]
+pub struct LabelGenerator
+{
+    counter: u32
+}
+
+impl LabelGenerator {
+    pub fn new() -> Self {
+        LabelGenerator {
+            counter: 0
+        }
+    }
+
+    pub fn generate_label(&mut self) -> Label {
+        let counter = self.counter;
+        self.counter += 1;
+        counter
+    }
+}
+
+#[derive(Clone)]
 pub struct BytecodeCompiler
 {
     scopes: Scopes,
     functions: Vec<BytecodeFunction>,
     isa: InstructionSet,
+    label_generator: LabelGenerator
 }
 
 impl BytecodeCompiler {
@@ -39,6 +60,7 @@ impl BytecodeCompiler {
             scopes: Scopes::new(),
             functions: Vec::new(),
             isa: InstructionSet::default(),
+            label_generator: LabelGenerator::new()
         }
     }
 
@@ -52,7 +74,7 @@ impl BytecodeCompiler {
             Err(e) => { return Err(CompilerError::from(e)); }
         };
 
-        let bytecode = match ast.ast {
+        let mut bytecode = match ast.ast {
             resast::Program::Mod(_) => { return Err(CompilerError::are_unsupported("ES6 modules")); },
             resast::Program::Script(s) => {
                 s.iter().map(|part| {
@@ -60,6 +82,8 @@ impl BytecodeCompiler {
                 }).collect::<Result<Bytecode, CompilerError>>()?
             },
         };
+
+        bytecode = self.finalize_label_addresses(bytecode)?;
 
         if self.functions.is_empty() {
             Ok(bytecode)
@@ -121,7 +145,7 @@ impl BytecodeCompiler {
             // Stmt::Labled()
             // Stmt::Break()
             // Stmt::Continue()
-            // Stmt::If()
+            Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt), 
             // Stmt::Switch()
             Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
             Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
@@ -150,7 +174,37 @@ impl BytecodeCompiler {
         )
     }
 
+    fn compile_if_stmt(&mut self, if_stmt: &IfStmt) -> BytecodeResult {
+        let (test_bytecode, test_reg) = self.maybe_compile_expr(&if_stmt.test, None)?;
+
+        let if_branch_bc = self.compile_stmt(if_stmt.consequent.borrow())?;
+
+        let if_branch_end_label = self.label_generator.generate_label();
+        let else_branch_end_label = self.label_generator.generate_label();
+
+        let bytecode = test_bytecode
+                .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
+                .combine(if_branch_bc);
+
+        if let Some(else_branch) = if_stmt.alternate.borrow() {
+            let else_branch_bc = self.compile_stmt(&else_branch.borrow())?;
+            //If-Else
+            Ok(bytecode
+                .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(else_branch_end_label)]))
+                .add_label(if_branch_end_label)
+                .combine(else_branch_bc)
+                .add_label(else_branch_end_label)
+            )
+        } else {
+            // If
+            Ok(bytecode
+                .add_label(if_branch_end_label))
+        }
+    }
+
     fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {
+        println!("Expr: {:?}", expr);
+        println!("Before before target_reg: {:?}", target_reg);
         let (opt_bytecode, target_reg) = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
                 Ok(var) => (Some(Bytecode::new()), Some(var.register)),
@@ -172,15 +226,22 @@ impl BytecodeCompiler {
             _ => (None, target_reg)
         };
 
+        println!("Before target_reg: {:?}", target_reg);
+
         let target_reg = match target_reg {
             Some(reg) => reg,
             None => self.scopes.reserve_register()?
         };
 
+        println!("Set target_reg: {}", target_reg);
+
+
         let bytecode = match opt_bytecode {
             Some(bc) => bc,
             None => self.compile_expr(expr, target_reg)?
         };
+
+        println!("target_reg: {}", target_reg);
 
         Ok((bytecode, target_reg))
     }
@@ -230,13 +291,12 @@ impl BytecodeCompiler {
     }
 
     fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], target_reg: Reg) -> BytecodeResult {
+        let (args_bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = args.iter().map(|arg_expr| {
+            self.maybe_compile_expr(arg_expr, None)
+        }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
-        let args_bytecode = args.iter().map(|arg_expr| {
-            self.maybe_compile_expr(arg_expr, Some())
-        });
-
-        Ok(Bytecode::new()
-            .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::token(func, 8)])))
+        Ok(args_bytecode.into_iter().collect::<Bytecode>()
+            .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::function_addr(func), Operand::RegistersArray(arg_regs)])))
     }
 
     fn compile_extern_func_call(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
@@ -352,8 +412,30 @@ impl BytecodeCompiler {
         Ok(Bytecode::new().add(self.isa.load_op(left, right)))
     }
 
+    fn finalize_label_addresses(&self, mut bc: Bytecode) -> Result<Bytecode, CompilerError> {
+        let mut offset_counter = 0;
+        let label_offsets: HashMap<Label, usize> = bc.elements.iter().filter_map(|element| {
+            match element {
+                BytecodeElement::Command(cmd) => {offset_counter += cmd.length_in_bytes(); None},
+                BytecodeElement::Label(label) => Some((label.clone(), offset_counter.clone()))
+            }
+        }).collect();
+
+        for cmd in bc.commands_iter_mut() {
+            for op in cmd.operands.iter_mut() {
+                if let Operand::BranchAddr(token) = op {
+                    *op = Operand::LongNum(*label_offsets.get(&token.label).ok_or(
+                        CompilerError::Custom(format!("Found unknown label {}", token.label))
+                    )? as i64);
+                }
+            }
+        }
+
+        Ok(bc)
+    }
+
     fn finalize_function_bytescodes(&self, main: Bytecode) -> Result<Bytecode, CompilerError> {
-        let mut function_offsets:HashMap<String, usize> = HashMap::new();
+        let mut function_offsets: HashMap<String, usize> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
 
         let functions_bytecode: Bytecode = self.functions.iter().map(|func| {
@@ -365,9 +447,9 @@ impl BytecodeCompiler {
 
         let mut complete_bytecode = main.combine(functions_bytecode);
 
-        for cmd in complete_bytecode.commands.iter_mut() {
+        for cmd in complete_bytecode.commands_iter_mut() {
             for op in cmd.operands.iter_mut() {
-                if let Operand::SubstituteToken(token) = op {
+                if let Operand::FunctionAddr(token) = op {
                     *op = Operand::LongNum(*function_offsets.get(&token.ident).ok_or(
                         CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
                     )? as i64);
@@ -402,11 +484,4 @@ fn test_bytecode_compile_var_decl() {
          Bytecode::new().add(Command::new(Instruction::LoadString,
              vec![Operand::Reg(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
                   Operand::String("TestString".into())])));
-}
-
-#[test]
-fn test_compiler_calculate_function_offsets() {
-    let compiler = BytecodeCompiler::new();
-
-    // assert!(compiler.calculate_function_offsets(&Bytecode::new()).unwrap().is_empty());
 }

@@ -74,33 +74,61 @@ fn test_compile_js_decls() {
 #[test]
 fn test_bytecode_func_calls() {
     run_test("function test() {}; test();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(10)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(11), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
     );
 
     run_test("function foo() {}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(21)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(21), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(23), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
     );
 
     run_test("function foo() {var a = 5;}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(19)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(24)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(21), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(26), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(5)]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
     );
 
+    run_test("function testy(a) {} testy(10);", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::RegistersArray(vec![0])]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]))
+    );
+
     run_test("function testy(a) {return a;} testy(10);", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(10)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::RegistersArray(vec![0])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![0])]))
+    );
+}
+
+#[test]
+fn test_jump_stmts() {
+    run_test("var a = false; if(a){a+=a;}", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(17)]))
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(0)]))
+        .add_label(0)
+    );
+
+    run_test("var a = false; if(a){a+=a;}else{a+=2}", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(26)]))
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(0)]))
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(33)]))
+        .add_label(0)
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(2)]))
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(1)]))
+        .add_label(1)
     );
 }
 
