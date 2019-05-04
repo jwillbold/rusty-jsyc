@@ -149,9 +149,9 @@ impl BytecodeCompiler {
             // Stmt::Switch()
             Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
             Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
-            // Stmt::While()
-            // Stmt::DoWhile()
-            // Stmt::For()
+            Stmt::While(while_stmt) => self.compile_while_stmt(while_stmt),
+            Stmt::DoWhile(dowhile_stmt) => self.compile_dowhile_stmt(dowhile_stmt),
+            Stmt::For(for_stmt) => self.compile_for_stmt(for_stmt),
             Stmt::ForIn(_) => Err(CompilerError::are_unsupported("for-in statments")),
             Stmt::ForOf(_) => Err(CompilerError::are_unsupported("for-of statments")),
             Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
@@ -200,6 +200,37 @@ impl BytecodeCompiler {
             Ok(bytecode
                 .add_label(if_branch_end_label))
         }
+    }
+
+    fn compile_while_stmt(&mut self, while_stmt: &WhileStmt) -> BytecodeResult {
+        let (test_bc, test_reg) = self.maybe_compile_expr(&while_stmt.test, None)?;
+
+        let while_cond_label = self.label_generator.generate_label();
+        let while_end_label = self.label_generator.generate_label();
+
+        Ok(test_bc
+            .add_label(while_cond_label)
+            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
+            .combine(self.compile_stmt(while_stmt.body.borrow())?)
+            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(while_cond_label)]))
+            .add_label(while_end_label))
+    }
+
+    fn compile_dowhile_stmt(&mut self, dowhile_stmt: &DoWhileStmt) -> BytecodeResult {
+        let body_bc = self.compile_stmt(dowhile_stmt.body.borrow())?;
+        let (test_bc, test_reg) = self.maybe_compile_expr(&dowhile_stmt.test, None)?;
+
+        let dowhile_start_label = self.label_generator.generate_label();
+
+        Ok(Bytecode::new()
+            .add_label(dowhile_start_label)
+            .combine(body_bc)
+            .combine(test_bc)
+            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)])))
+    }
+
+    fn compile_for_stmt(&mut self, for_stmt: &ForStmt) -> BytecodeResult {
+        unimplemented!("for stmt")
     }
 
     fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {

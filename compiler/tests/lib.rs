@@ -130,6 +130,22 @@ fn test_jump_stmts() {
         .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(1)]))
         .add_label(1)
     );
+
+    run_test("var a = true; while(a){a=false;}", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
+        .add_label(0)
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(25)]))
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(3)]))
+        .add_label(1)
+    );
+
+     run_test("var a = true; do{a=false;}while(a)", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
+        .add_label(0)
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(3)]))
+    );
 }
 
 #[test]
