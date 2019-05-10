@@ -8,6 +8,8 @@ pub enum CompilerError {
     Custom(String)
 }
 
+pub type CompilerResult<V> = Result<V, CompilerError>;
+
 impl CompilerError {
     pub fn is_unsupported(error: &str) -> Self {
         CompilerError::Unsupported(format!("'{}' is not supported", error))

@@ -146,6 +146,12 @@ fn test_jump_stmts() {
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
         .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(3)]))
     );
+
+    // run_test("var a = 10; for(var i = 0; i < 10; i+=1){a++}", BytecodeCompiler::new(), Bytecode::new()
+    //     .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+    //     .add_label(0)
+        // .add(Command::new(Instruction::))
+    // );
 }
 
 #[test]

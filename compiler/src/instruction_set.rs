@@ -1,20 +1,74 @@
 use crate::bytecode::*;
-use crate::scope::Reg;
+use crate::scope::{Reg, Scope};
+use crate::error::{CompilerError, CompilerResult};
 
 pub use resast::prelude::*;
 
+#[derive(Clone)]
+pub enum CommonLiteral
+{
+    Num0,
+    Num1,
+    Void0 // Undefined
+    // EmptyString
+}
+
+impl CommonLiteral {
+    pub fn idx(&self) -> usize {
+        match self {
+            CommonLiteral::Num0 => 0,
+            CommonLiteral::Num1 => 1,
+            CommonLiteral::Void0 => 2,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct CommonLiteralRegs
+{
+    regs: Vec<Reg>
+}
+
+impl CommonLiteralRegs {
+    pub fn new(scope: &mut Scope) -> CompilerResult<Self> {
+        // This construct is a reminder, that will fail to compile if the enum CommonLiteral
+        // is changed without adjusting this enum_size. This it will be almost impossible
+        // to forget changing this enum_size when changing the num above
+        // Rust 1.34.0 completly optmizes this out.
+        let reminder = CommonLiteral::Num0;
+        let enum_size = match reminder {
+            CommonLiteral::Num0 | CommonLiteral::Num1 | CommonLiteral::Void0 => 3
+        };
+
+        Ok(CommonLiteralRegs {
+            regs: (0..enum_size).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
+        })
+    }
+
+    pub fn reg(&self, common_lit: &CommonLiteral) -> Reg {
+        self.regs[common_lit.idx()]
+    }
+}
 
 #[derive(Clone)]
 pub struct InstructionSet
 {
-
+    common_regs: CommonLiteralRegs
 }
 
 impl InstructionSet {
-    pub fn default() -> Self {
+    pub fn default(scope: &mut Scope) -> Self {
         InstructionSet {
-
+            common_regs: CommonLiteralRegs::new(scope).unwrap()
         }
+    }
+
+    pub fn common_lits(&self) -> &CommonLiteralRegs {
+        &self.common_regs
+    }
+
+    pub fn common_literal_reg(&self, common_lit: &CommonLiteral) -> Reg {
+        self.common_regs.reg(common_lit)
     }
 
     pub fn load_op(&self, left: Reg, right: Operand) -> Command {
@@ -59,20 +113,67 @@ impl InstructionSet {
             UpdateOperator::Decrement => Instruction::Minus,
         };
 
-        // TODO
-        Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(rd), Operand::Reg(255)])
+        Command::new(instr, vec![
+            Operand::Reg(rd),
+            Operand::Reg(rd),
+            Operand::Reg(self.common_literal_reg(&CommonLiteral::Num1))
+            ]
+        )
     }
 
-    pub fn unary_op(&self, op: &UnaryOperator, rd: Reg, rs: Reg) -> Command {
-        // match op {
-            // Minus,
-            // Plus,
+    pub fn unary_op(&self, op: &UnaryOperator, rd: Reg, rs: Reg) -> CompilerResult<Command> {
+        Ok(match op {
+            UnaryOperator::Minus => Command::new(Instruction::Minus, vec![
+                Operand::Reg(rd),
+                Operand::Reg(self.common_literal_reg(&CommonLiteral::Num0)),
+                Operand::Reg(rs)
+                ]
+            ),
+            UnaryOperator::Plus => Command::new(Instruction::Add, vec![
+                Operand::Reg(rd),
+                Operand::Reg(self.common_literal_reg(&CommonLiteral::Num0)),
+                Operand::Reg(rs)
+                ]
+            ),
             // Not,
             // Tilde,
             // TypeOf,
             // Void,
             // Delete,
-        // }
-        unimplemented!("unary operations")
+            _ => { return Err(CompilerError::is_unsupported("Unary operation")); }
+        })
+    }
+
+    pub fn binary_op(&self, op: &BinaryOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Command> {
+        Ok(match op {
+            // Equal,
+            // NotEqual,
+            // StrictEqual,
+            // StrictNotEqual,
+            // LessThan,
+            // GreaterThan,
+            // LessThanEqual,
+            // GreaterThanEqual,
+            // LeftShift,
+            // RightShift,
+            // UnsignedRightShift,
+            BinaryOperator::Plus => Command::new(Instruction::Add, vec![
+                    Operand::Reg(rd),
+                    Operand::Reg(r0),
+                    Operand::Reg(r1),
+                ]
+            ),
+            // Minus,
+            // Times,
+            // Over,
+            // Mod,
+            // Or,
+            // XOr,
+            // And,
+            // In,
+            // InstanceOf,
+            // PowerOf,
+            _ => { return Err(CompilerError::is_unsupported("Binary operation")); }
+        })
     }
 }

@@ -19,84 +19,49 @@ impl Declaration {
     }
 }
 
-// #[derive(Hash, Debug, Clone, PartialEq, Eq)]
-// pub enum CommonLiterals {
-//     Zero,
-//     One,
-//     Undefined,
-//     EmptyString
-// }
-
 #[derive(Debug, Clone)]
 pub struct Scope
 {
     pub decls: HashMap<String, Declaration>,
-    pub unnamed_reserved_registers: VecDeque<Register>,
+    pub unused_register: VecDeque<Register>,
 }
 
 impl Scope {
     pub fn new() -> Self {
         Scope {
             decls: HashMap::new(),
-            unnamed_reserved_registers: VecDeque::new(),
+            unused_register: (0..Register::max_value()).collect(),
         }
     }
 
     pub fn derive_scope(parent_scope: &Scope) -> Result<Self, CompilerError> {
         Ok(Scope {
             decls: parent_scope.decls.clone(),
-            unnamed_reserved_registers: VecDeque::new(),
+            unused_register: parent_scope.unused_register.clone()
         })
     }
 
-    pub fn used_registers(self) -> VecDeque<Register> {
-        let mut uses_regs = self.unnamed_reserved_registers;
-        uses_regs.append(&mut self.decls.iter().map(|(_, decl)| {
-            decl.register
-        }).collect());
-        uses_regs
+    pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
+        self.unused_register.front().ok_or(
+            CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
+        )
     }
 
-    // pub fn name_by_register(&self, register: Register) -> Result<String, CompilerError> {
-    //     for (name, decl) in &self.decls {
-    //         if decl.register == register {
-    //             return Ok(name.to_string());
-    //         }
-    //     }
-    //
-    //     Err(CompilerError::Custom(format!("Failed to find name for regitser: {}", register)))
-    // }
-}
-
-#[derive(Debug, Clone)]
-pub struct Scopes
-{
-    pub scopes: Vec<Scope>,
-    pub unused_register: VecDeque<Register>,
-    // pub common_literals: HashMap<CommonLiterals, Register>
-}
-
-impl Scopes
-{
-    pub fn new() -> Scopes {
-        Scopes {
-            scopes: vec![ Scope::new() ],
-            unused_register: (0..Register::max_value()).collect(),
-            // common_literals: HashMap::new()
-        }
+    pub fn get_unused_register(&mut self) -> Result<Register, CompilerError> {
+        self.unused_register.pop_front().ok_or(
+            CompilerError::Custom("All registers are in use. Free up some registers".into())
+        )
     }
 
-    pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
-        self.add_decl(decl, false)
-    }
-
-    pub fn add_func_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
-        self.add_decl(decl, true)
+    pub fn get_unused_register_back(&mut self) -> Result<Register, CompilerError> {
+        self.unused_register.pop_back().ok_or(
+            CompilerError::Custom("All registers are in use. Free up some registers".into())
+        )
     }
 
     pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
-        self.current_scope_mut()?.decls.insert(decl, Declaration {
+        self.decls.insert(decl, Declaration {
             register: unused_reg,
             is_function: is_function
         });
@@ -110,11 +75,44 @@ impl Scopes
     pub fn reserve_register_back(&mut self) -> Result<Register, CompilerError> {
         self.get_unused_register_back()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Scopes
+{
+    pub scopes: Vec<Scope>,
+}
+
+impl Scopes
+{
+    pub fn new() -> Scopes {
+        Scopes {
+            scopes: vec![ Scope::new() ],
+        }
+    }
+
+    pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+        self.add_decl(decl, false)
+    }
+
+    pub fn add_func_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+        self.add_decl(decl, true)
+    }
+
+    pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
+        self.current_scope_mut()?.add_decl(decl, is_function)
+    }
+
+    pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {
+        self.current_scope_mut()?.reserve_register()
+    }
+
+    pub fn reserve_register_back(&mut self) -> Result<Register, CompilerError> {
+        self.current_scope_mut()?.reserve_register_back()
+    }
 
     pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
-        self.unused_register.front().ok_or(
-            CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
-        )
+        self.current_scope()?.get_throwaway_register()
     }
 
     pub fn get_var(&self, var_name: &str) -> Result<&Declaration, CompilerError> {
@@ -133,34 +131,17 @@ impl Scopes
         )
     }
 
-    fn current_scope_mut(&mut self) -> Result<&mut Scope, CompilerError> {
+    pub fn current_scope_mut(&mut self) -> Result<&mut Scope, CompilerError> {
         self.scopes.last_mut().ok_or(
             CompilerError::Custom("No current (mut) scope".into())
         )
     }
 
     pub fn leave_current_scope(&mut self) -> Result<(), CompilerError> {
-        let scope = self.scopes.pop().ok_or(
-            CompilerError::Custom("Cannot leave inextsiting scope".into())
+        let _scope = self.scopes.pop().ok_or(
+            CompilerError::Custom("Cannot leave inexisting scope".into())
         )?;
-
-        // TODO: This is probabbly possible with less push-calls
-        for reg in scope.used_registers().into_iter().rev() {
-            self.unused_register.push_front(reg);
-        }
         Ok(())
-    }
-
-    fn get_unused_register(&mut self) -> Result<Register, CompilerError> {
-        self.unused_register.pop_front().ok_or(
-            CompilerError::Custom("All registers are in use. Free up some registers".into())
-        )
-    }
-
-    fn get_unused_register_back(&mut self) -> Result<Register, CompilerError> {
-        self.unused_register.pop_back().ok_or(
-            CompilerError::Custom("All registers are in use. Free up some registers".into())
-        )
     }
 }
 

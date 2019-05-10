@@ -1,4 +1,4 @@
-use crate::error::{CompilerError};
+use crate::error::{CompilerError, CompilerResult};
 use crate::jshelper::{JSSourceCode, JSAst};
 use crate::bytecode::{Bytecode};
 use crate::scope::*;
@@ -11,7 +11,6 @@ use std::borrow::Borrow;
 // use std::boxed::Box;
 use std::collections::HashMap;
 
-pub type CompilerResult<V> = Result<V, CompilerError>;
 pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
 
@@ -56,10 +55,13 @@ pub struct BytecodeCompiler
 impl BytecodeCompiler {
 
     pub fn new() -> Self {
+        let mut scopes = Scopes::new();
+        let isa = InstructionSet::default(scopes.current_scope_mut().unwrap());
+
         BytecodeCompiler{
-            scopes: Scopes::new(),
+            scopes: scopes,
             functions: Vec::new(),
-            isa: InstructionSet::default(),
+            isa: isa,
             label_generator: LabelGenerator::new()
         }
     }
@@ -145,7 +147,7 @@ impl BytecodeCompiler {
             // Stmt::Labled()
             // Stmt::Break()
             // Stmt::Continue()
-            Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt), 
+            Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt),
             // Stmt::Switch()
             Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
             Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
@@ -230,7 +232,37 @@ impl BytecodeCompiler {
     }
 
     fn compile_for_stmt(&mut self, for_stmt: &ForStmt) -> BytecodeResult {
-        unimplemented!("for stmt")
+        let init_bc = match &for_stmt.init {
+            Some(loop_init) => match loop_init {
+                LoopInit::Variable(kind, decls) => self.compile_var_decl(&kind, &decls)?,
+                LoopInit::Expr(expr) => self.maybe_compile_expr(&expr, None)?.0
+            },
+            None => Bytecode::new()
+        };
+
+        let (test_bc, test_reg) = match &for_stmt.test {
+            Some(test_expr) => self.maybe_compile_expr(&test_expr, None)?,
+            None => (Bytecode::new(), 0)
+        };
+
+        let update_bc = match &for_stmt.update {
+            Some(update_expr) => self.maybe_compile_expr(&update_expr, None)?.0,
+            None => Bytecode::new()
+        };
+
+        let body_bc = self.compile_stmt(&for_stmt.body)?;
+
+        let loop_start_label = self.label_generator.generate_label();
+        let loop_end_label = self.label_generator.generate_label();
+
+        Ok(init_bc
+            .add_label(loop_start_label)
+            .combine(test_bc)
+            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
+            .combine(body_bc)
+            .combine(update_bc)
+            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(loop_start_label)]))
+            .add_label(loop_end_label))
     }
 
     fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {
@@ -284,7 +316,7 @@ impl BytecodeCompiler {
             Expr::ArrowParamPlaceHolder(_,_) => Err(CompilerError::are_unsupported("Arrow parameter placeholder")),
             Expr::Assignment(assignment) => self.compile_assignment_expr(assignment, target_reg),
             Expr::Await(_) => Err(CompilerError::are_unsupported("'await' expressions")),
-            // Expr::Binary(bin) =>
+            Expr::Binary(bin) => self.compile_binary_expr(bin, target_reg),
             Expr::Class(_) => Err(CompilerError::are_unsupported("'class' expressions")),
             Expr::Call(call) => self.compile_call_expr(call, target_reg),
             // Expr::Conditional(cond) =>
@@ -306,6 +338,34 @@ impl BytecodeCompiler {
             Expr::Yield(_) => Err(CompilerError::are_unsupported("'yield' expressions")),
             _ => Err(CompilerError::is_unsupported("Expression type")),
         }
+    }
+
+    fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Register) -> BytecodeResult {
+        let (left_bc, left_reg) = match &assign.left {
+            AssignmentLeft::Pat(_) => { return Err(CompilerError::are_unsupported("Patterns in assignments")); },
+            AssignmentLeft::Expr(expr) => self.maybe_compile_expr(&expr, None)?
+        };
+
+        match assign.operator {
+            AssignmentOperator::Equal => {
+                Ok(left_bc.combine(self.compile_expr(assign.right.borrow(), left_reg)?))
+            }
+            _ => {
+                let (right_bc, right_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
+                Ok(left_bc.combine(right_bc)
+                    .add(self.isa.assignment_op(&assign.operator, left_reg, right_reg)))
+            }
+        }
+    }
+
+    fn compile_binary_expr(&mut self, bin: &BinaryExpr, target_reg: Reg) -> BytecodeResult {
+        let (left_bc, left_reg) = self.maybe_compile_expr(bin.left.borrow(), None)?;
+        let (right_bc, right_reg) = self.maybe_compile_expr(bin.right.borrow(), None)?;
+
+        Ok(left_bc
+            .combine(right_bc)
+            .add(self.isa.binary_op(&bin.operator, target_reg, left_reg, right_reg)?)
+        )
     }
 
     fn compile_call_expr(&mut self, call: &CallExpr, target_reg: Register) -> BytecodeResult {
@@ -347,6 +407,10 @@ impl BytecodeCompiler {
         )))
     }
 
+    fn compile_operand_assignment(&self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
+        Ok(Bytecode::new().add(self.isa.load_op(left, right)))
+    }
+
     fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Register) -> BytecodeResult {
         let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), None)?;
         let (prop_bc, prop_reg) =  match member.property.borrow() {
@@ -361,24 +425,6 @@ impl BytecodeCompiler {
             )))
     }
 
-    fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Register) -> BytecodeResult {
-        let (left_bc, left_reg) = match &assign.left {
-            AssignmentLeft::Pat(_) => { return Err(CompilerError::are_unsupported("Patterns in assignments")); },
-            AssignmentLeft::Expr(expr) => self.maybe_compile_expr(&expr, None)?
-        };
-
-        match assign.operator {
-            AssignmentOperator::Equal => {
-                Ok(left_bc.combine(self.compile_expr(assign.right.borrow(), left_reg)?))
-            }
-            _ => {
-                let (right_bc, right_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
-                Ok(left_bc.combine(right_bc)
-                    .add(self.isa.assignment_op(&assign.operator, left_reg, right_reg)))
-            }
-        }
-    }
-
     fn compile_update_expr(&mut self, update: &UpdateExpr, _target_reg: Register) -> BytecodeResult {
         if update.prefix {
             let (arg_bc, arg_reg) = self.maybe_compile_expr(update.argument.borrow(), None)?;
@@ -391,7 +437,7 @@ impl BytecodeCompiler {
     fn compile_unary_expr(&mut self, unary: &UnaryExpr, target_reg: Register) -> BytecodeResult {
         if unary.prefix {
             let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
-            Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)))
+            Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)?))
         } else {
             Err(CompilerError::are_unsupported("suffix unary expressions"))
         }
@@ -437,10 +483,6 @@ impl BytecodeCompiler {
         });
 
         Ok(Bytecode::new())
-    }
-
-    fn compile_operand_assignment(&self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
-        Ok(Bytecode::new().add(self.isa.load_op(left, right)))
     }
 
     fn finalize_label_addresses(&self, mut bc: Bytecode) -> Result<Bytecode, CompilerError> {
