@@ -30,7 +30,7 @@ impl Scope {
     pub fn new() -> Self {
         Scope {
             decls: HashMap::new(),
-            unused_register: (0..Register::max_value()).collect(),
+            unused_register: (0..(Register::max_value() as u16 + 1)).map(|reg: u16| reg as u8).collect(),
         }
     }
 
@@ -61,6 +61,7 @@ impl Scope {
 
     pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
+        println!("unused_reg: {:?}", unused_reg);
         self.decls.insert(decl, Declaration {
             register: unused_reg,
             is_function: is_function

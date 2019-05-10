@@ -147,11 +147,24 @@ fn test_jump_stmts() {
         .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(3)]))
     );
 
-    // run_test("var a = 10; for(var i = 0; i < 10; i+=1){a++}", BytecodeCompiler::new(), Bytecode::new()
-    //     .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
-    //     .add_label(0)
-        // .add(Command::new(Instruction::))
-    // );
+    run_test("var a = 10; for(var i = 0; i < 10; ++i){++a} --i;", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        // Init
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(0)]))
+        .add_label(0)
+        // Comp
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(3), Operand::ShortNum(10)]))
+        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(3)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(40)]))
+        // Body
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
+        // Update
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1)
+        // Check that i still exists
+        .add(Command::new(Instruction::Minus, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
+    );
 }
 
 #[test]

@@ -41,7 +41,7 @@ impl CommonLiteralRegs {
         };
 
         Ok(CommonLiteralRegs {
-            regs: (0..enum_size).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
+            regs: (0..enum_size).map(|_| { let a = scope.reserve_register_back(); println!("reserving: {:?}", a); a} ).collect::<CompilerResult<Vec<Reg>>>()?
         })
     }
 
@@ -92,7 +92,7 @@ impl InstructionSet {
             AssignmentOperator::PlusEqual => Instruction::Add,
             AssignmentOperator::MinusEqual => Instruction::Minus,
             AssignmentOperator::TimesEqual => Instruction::Mul,
-            // DivEqual,
+            AssignmentOperator::DivEqual => Instruction::Div,
             // ModEqual,
             // LeftShiftEqual,
             // RightShiftEqual,
@@ -145,26 +145,21 @@ impl InstructionSet {
     }
 
     pub fn binary_op(&self, op: &BinaryOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Command> {
-        Ok(match op {
-            // Equal,
-            // NotEqual,
-            // StrictEqual,
-            // StrictNotEqual,
-            // LessThan,
-            // GreaterThan,
-            // LessThanEqual,
-            // GreaterThanEqual,
-            // LeftShift,
-            // RightShift,
-            // UnsignedRightShift,
-            BinaryOperator::Plus => Command::new(Instruction::Add, vec![
-                    Operand::Reg(rd),
-                    Operand::Reg(r0),
-                    Operand::Reg(r1),
-                ]
-            ),
-            // Minus,
-            // Times,
+        let instr = match op {
+            BinaryOperator::Equal => Instruction::CompEqual,
+            BinaryOperator::NotEqual => Instruction::CompNotEqual,
+            BinaryOperator::StrictEqual => Instruction::CompStrictEqual,
+            BinaryOperator::StrictNotEqual => Instruction::CompStrictNotEqual,
+            BinaryOperator::LessThan => Instruction::CompLessThan,
+            BinaryOperator::GreaterThan => Instruction::CompGreaterThan,
+            BinaryOperator::LessThanEqual => Instruction::CompLessThanEqual,
+            BinaryOperator::GreaterThanEqual => Instruction::CompGreaterThanEqual,
+            // BinaryOperator::LeftShift => Instruction::Sh,
+            // BinaryOperator::RightShift,
+            // BinaryOperator::UnsignedRightShift,
+            BinaryOperator::Plus => Instruction::Add,
+            BinaryOperator::Minus => Instruction::Minus,
+            BinaryOperator::Times => Instruction::Mul,
             // Over,
             // Mod,
             // Or,
@@ -174,6 +169,8 @@ impl InstructionSet {
             // InstanceOf,
             // PowerOf,
             _ => { return Err(CompilerError::is_unsupported("Binary operation")); }
-        })
+        };
+
+        Ok(Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))
     }
 }

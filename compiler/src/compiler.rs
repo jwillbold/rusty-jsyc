@@ -240,6 +240,7 @@ impl BytecodeCompiler {
             None => Bytecode::new()
         };
 
+        // TODO: for_stmt.test => No test
         let (test_bc, test_reg) = match &for_stmt.test {
             Some(test_expr) => self.maybe_compile_expr(&test_expr, None)?,
             None => (Bytecode::new(), 0)
@@ -266,8 +267,8 @@ impl BytecodeCompiler {
     }
 
     fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {
-        println!("Expr: {:?}", expr);
-        println!("Before before target_reg: {:?}", target_reg);
+        // println!("Expr: {:?}", expr);
+        // println!("Before before target_reg: {:?}", target_reg);
         let (opt_bytecode, target_reg) = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
                 Ok(var) => (Some(Bytecode::new()), Some(var.register)),
@@ -289,14 +290,14 @@ impl BytecodeCompiler {
             _ => (None, target_reg)
         };
 
-        println!("Before target_reg: {:?}", target_reg);
+        // println!("Before target_reg: {:?}", target_reg);
 
         let target_reg = match target_reg {
             Some(reg) => reg,
             None => self.scopes.reserve_register()?
         };
 
-        println!("Set target_reg: {}", target_reg);
+        // println!("Set target_reg: {}", target_reg);
 
 
         let bytecode = match opt_bytecode {
@@ -304,7 +305,7 @@ impl BytecodeCompiler {
             None => self.compile_expr(expr, target_reg)?
         };
 
-        println!("target_reg: {}", target_reg);
+        // println!("target_reg: {}", target_reg);
 
         Ok((bytecode, target_reg))
     }
@@ -381,7 +382,7 @@ impl BytecodeCompiler {
         }
     }
 
-    fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], target_reg: Reg) -> BytecodeResult {
+    fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], _target_reg: Reg) -> BytecodeResult {
         let (args_bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = args.iter().map(|arg_expr| {
             self.maybe_compile_expr(arg_expr, None)
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();

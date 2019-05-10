@@ -31,9 +31,26 @@ pub enum Instruction
     JumpCond,
     Jump,
 
+    CompEqual,
+    CompNotEqual,
+    CompStrictEqual,
+    CompStrictNotEqual,
+    CompLessThan,
+    CompGreaterThan,
+    CompLessThanEqual,
+    CompGreaterThanEqual,
+
     Add,
     Minus,
     Mul,
+    Div,
+    // LeftShift
+    // RightShift
+    // Mod,
+    // Or,
+    // XOr,
+    // And,
+    // In,
 }
 
 impl Instruction {
@@ -54,9 +71,19 @@ impl Instruction {
             Instruction::JumpCond => 17,
             Instruction::Jump => 18,
 
+            Instruction::CompEqual => 50,
+            Instruction::CompNotEqual => 51,
+            Instruction::CompStrictEqual => 52,
+            Instruction::CompStrictNotEqual => 53,
+            Instruction::CompLessThan => 54,
+            Instruction::CompGreaterThan => 55,
+            Instruction::CompLessThanEqual => 56,
+            Instruction::CompGreaterThanEqual => 57,
+
             Instruction::Add => 100,
             Instruction::Minus => 102,
             Instruction::Mul => 101,
+            Instruction::Div => 103,
         }
     }
 }
