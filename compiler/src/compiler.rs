@@ -240,10 +240,17 @@ impl BytecodeCompiler {
             None => Bytecode::new()
         };
 
-        // TODO: for_stmt.test => No test
-        let (test_bc, test_reg) = match &for_stmt.test {
-            Some(test_expr) => self.maybe_compile_expr(&test_expr, None)?,
-            None => (Bytecode::new(), 0)
+        let loop_start_label = self.label_generator.generate_label();
+        let loop_end_label = self.label_generator.generate_label();
+
+        let test_bc = match &for_stmt.test {
+            Some(test_expr) => {
+                let (test_bc, test_reg) = self.maybe_compile_expr(&test_expr, None)?;
+
+                test_bc
+                    .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
+            }
+            None => Bytecode::new()
         };
 
         let update_bc = match &for_stmt.update {
@@ -253,26 +260,23 @@ impl BytecodeCompiler {
 
         let body_bc = self.compile_stmt(&for_stmt.body)?;
 
-        let loop_start_label = self.label_generator.generate_label();
-        let loop_end_label = self.label_generator.generate_label();
-
         Ok(init_bc
             .add_label(loop_start_label)
             .combine(test_bc)
-            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
             .combine(body_bc)
             .combine(update_bc)
             .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(loop_start_label)]))
             .add_label(loop_end_label))
     }
 
-    fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> Result<(Bytecode, Register), CompilerError> {
-        // println!("Expr: {:?}", expr);
-        // println!("Before before target_reg: {:?}", target_reg);
-        let (opt_bytecode, target_reg) = match expr {
+    fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> CompilerResult<(Bytecode, Register)> {
+        let (opt_bytecode, opt_reg) = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
-                Ok(var) => (Some(Bytecode::new()), Some(var.register)),
-                Err(_) => (None, target_reg)
+                Ok(var) => match target_reg {
+                    Some(reg) => (Some(self.compile_operand_assignment(reg, Operand::Reg(var.register))?), Some(reg)),
+                    None => (Some(Bytecode::new()), Some(var.register)),
+                },
+                Err(_) => (None, None)
             },
             // TODO: Check test_member_expr
             // Expr::Member(member) => match member.object.borrow() {
@@ -287,25 +291,18 @@ impl BytecodeCompiler {
             //         },
             //         _ => (None, target_reg)
             // },
-            _ => (None, target_reg)
+            _ => (None, None)
         };
 
-        // println!("Before target_reg: {:?}", target_reg);
-
-        let target_reg = match target_reg {
+        let target_reg = match opt_reg {
             Some(reg) => reg,
             None => self.scopes.reserve_register()?
         };
-
-        // println!("Set target_reg: {}", target_reg);
-
 
         let bytecode = match opt_bytecode {
             Some(bc) => bc,
             None => self.compile_expr(expr, target_reg)?
         };
-
-        // println!("target_reg: {}", target_reg);
 
         Ok((bytecode, target_reg))
     }
@@ -320,20 +317,20 @@ impl BytecodeCompiler {
             Expr::Binary(bin) => self.compile_binary_expr(bin, target_reg),
             Expr::Class(_) => Err(CompilerError::are_unsupported("'class' expressions")),
             Expr::Call(call) => self.compile_call_expr(call, target_reg),
-            // Expr::Conditional(cond) =>
+            Expr::Conditional(cond) => self.compile_conditional_expr(cond, target_reg),
             Expr::Function(_) => Err(CompilerError::are_unsupported("function expressions")),
             Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Reg(self.scopes.get_var(&ident)?.register)),
             Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
-            // Expr::Logical(logical) =>
+            Expr::Logical(logical) => self.compile_logical_expr(logical, target_reg),
             Expr::Member(member) => self.compile_member_expr(member, target_reg),
             Expr::MetaProperty(_) => Err(CompilerError::are_unsupported("meta properties")),
             // Expr::New(new) =>
             // Expr::Object(obj) =>
-            // Expr::Sequence(seq) =>
+            Expr::Sequence(seq) => Err(CompilerError::are_unsupported("seqeunce expressions")),
             Expr::Spread(_) => Err(CompilerError::are_unsupported("spread expressions")),
             Expr::Super => Err(CompilerError::are_unsupported("'super' expressions")),
             Expr::TaggedTemplate(_) => Err(CompilerError::are_unsupported("tagged template expressions")),
-            // Expr::This =>
+            // Expr::This => self.compile_operand_assignment(target_reg, right: Operand)
             Expr::Update(update) => self.compile_update_expr(update, target_reg),
             Expr::Unary(unary) => self.compile_unary_expr(unary, target_reg),
             Expr::Yield(_) => Err(CompilerError::are_unsupported("'yield' expressions")),
@@ -382,6 +379,23 @@ impl BytecodeCompiler {
         }
     }
 
+    fn compile_conditional_expr(&mut self, conditional: &ConditionalExpr, target_reg: Reg) -> BytecodeResult {
+        let (test_bc, test_reg) = self.maybe_compile_expr(conditional.test.borrow(), None)?;
+        let (consequent_bc, _) = self.maybe_compile_expr(conditional.consequent.borrow(), Some(target_reg))?;
+        let (alt_bc, _) = self.maybe_compile_expr(conditional.alternate.borrow(), Some(target_reg))?;
+
+        let after_alt_label = self.label_generator.generate_label();
+        let after_cons_label = self.label_generator.generate_label();
+
+        Ok(test_bc
+            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(after_alt_label)]))
+            .combine(consequent_bc)
+            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(after_cons_label)]))
+            .add_label(after_alt_label)
+            .combine(alt_bc)
+            .add_label(after_cons_label))
+    }
+
     fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], _target_reg: Reg) -> BytecodeResult {
         let (args_bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = args.iter().map(|arg_expr| {
             self.maybe_compile_expr(arg_expr, None)
@@ -392,7 +406,7 @@ impl BytecodeCompiler {
     }
 
     fn compile_extern_func_call(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
-        let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), Some(target_reg))?;
+        let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), None)?;
 
         let (bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = call.arguments.iter().map(|arg| {
             self.maybe_compile_expr(arg, None)
@@ -408,8 +422,19 @@ impl BytecodeCompiler {
         )))
     }
 
-    fn compile_operand_assignment(&self, left: Register, right: Operand) -> Result<Bytecode, CompilerError> {
+    fn compile_operand_assignment(&self, left: Register, right: Operand) -> BytecodeResult {
         Ok(Bytecode::new().add(self.isa.load_op(left, right)))
+    }
+
+    fn compile_logical_expr(&mut self, logical: &LogicalExpr, target_reg: Reg) -> BytecodeResult {
+        let (left_bc, left_reg) = self.maybe_compile_expr(logical.left.borrow(), None)?;
+        let (right_bc, right_reg) = self.maybe_compile_expr(logical.right.borrow(), None)?;
+
+        unimplemented!("logic expresions")
+        // TODO how to lazy-evaluate right
+        // left_bc
+        //     .add(Command::new(Instruction::LogicAnd, ))
+        //     .add(self.isa.logical_op(logical.operator, target_reg, left_reg, right_reg)?)
     }
 
     fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Register) -> BytecodeResult {
@@ -444,7 +469,7 @@ impl BytecodeCompiler {
         }
     }
 
-    fn compile_func(&mut self, func: &Function) -> Result<Bytecode, CompilerError> {
+    fn compile_func(&mut self, func: &Function) -> BytecodeResult {
         if func.generator || func.is_async {
             return Err(CompilerError::are_unsupported("generator and async functions"))
         }
@@ -486,7 +511,7 @@ impl BytecodeCompiler {
         Ok(Bytecode::new())
     }
 
-    fn finalize_label_addresses(&self, mut bc: Bytecode) -> Result<Bytecode, CompilerError> {
+    fn finalize_label_addresses(&self, mut bc: Bytecode) -> BytecodeResult {
         let mut offset_counter = 0;
         let label_offsets: HashMap<Label, usize> = bc.elements.iter().filter_map(|element| {
             match element {
@@ -508,7 +533,7 @@ impl BytecodeCompiler {
         Ok(bc)
     }
 
-    fn finalize_function_bytescodes(&self, main: Bytecode) -> Result<Bytecode, CompilerError> {
+    fn finalize_function_bytescodes(&self, main: Bytecode) -> BytecodeResult{
         let mut function_offsets: HashMap<String, usize> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
 

@@ -165,6 +165,50 @@ fn test_jump_stmts() {
         // Check that i still exists
         .add(Command::new(Instruction::Minus, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
     );
+
+    run_test("var a = 10; var i = 0; for(; i < 10; ++i){++a} --i;", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        // Init
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(0)]))
+        .add_label(0)
+        // Comp
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(3), Operand::ShortNum(10)]))
+        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(3)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(40)]))
+        // Body
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
+        // Update
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1)
+        // Check that i still exists
+        .add(Command::new(Instruction::Minus, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
+    );
+
+    run_test("var a = 10; var i = 0; for(;;){++a} --i;", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        // Init
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(0)]))
+        .add_label(0)
+        // Body
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
+        // Update
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1)
+        // Check that i still exists
+        .add(Command::new(Instruction::Minus, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(254)]))
+    );
+
+    run_test("var i = 0; for(;;){++i}", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
+        // Init
+        .add_label(0)
+        // Body
+        .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
+        // Update
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(3)]))
+        .add_label(1)
+    );
 }
 
 #[test]
@@ -210,6 +254,25 @@ fn test_member_expr() {
 }
 
 #[test]
+fn test_cond_expr() {
+    let mut compiler = BytecodeCompiler::new();
+    compiler.add_var_decl("test".into()).unwrap();
+    compiler.add_var_decl("a".into()).unwrap();
+    compiler.add_var_decl("b".into()).unwrap();
+
+    run_test("var result = (test > 0) ? a : b;", compiler, Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(5), Operand::ShortNum(0)]))
+        .add(Command::new(Instruction::CompGreaterThan, vec![Operand::Reg(4), Operand::Reg(0), Operand::Reg(5)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(4), Operand::LongNum(29)]))
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(3), Operand::Reg(1)]))
+        .add(Command::new(Instruction::Jump, vec![Operand::LongNum(32)]))
+        .add_label(0)
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(3), Operand::Reg(2)]))
+        .add_label(1)
+    );
+}
+
+#[test]
 fn test_compile_js_func_call() {
     let mut compiler = BytecodeCompiler::new();
     assert!(compiler.add_var_decl("test".into()).is_ok());
@@ -249,8 +312,8 @@ fn test_compile_js_func_call() {
     // assert!(compiler1.add_var_decl("document.test".into()).is_ok());
 
     run_test("document.test();", compiler_doc, Bytecode::new()
-                .add(Command::new(Instruction::LoadString, vec![Operand::Reg(1), Operand::String("test".into())]))
-                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(1)]))
+                .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("test".into())]))
+                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(2)]))
                 .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(1), Operand::RegistersArray(vec![])]))
             );
 }

@@ -31,6 +31,9 @@ pub enum Instruction
     JumpCond,
     Jump,
 
+    LogicAnd,
+    LogicOr,
+
     CompEqual,
     CompNotEqual,
     CompStrictEqual,
@@ -70,6 +73,9 @@ impl Instruction {
             Instruction::Exit => 16,
             Instruction::JumpCond => 17,
             Instruction::Jump => 18,
+
+            Instruction::LogicAnd => 30,
+            Instruction::LogicOr => 31,
 
             Instruction::CompEqual => 50,
             Instruction::CompNotEqual => 51,
@@ -136,7 +142,7 @@ impl Operand {
             Operand::String(string) => Operand::encode_string(string.to_string()),
             Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
             Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
-            Operand::ShortNum(num) | 
+            Operand::ShortNum(num) |
             Operand::Reg(num) => vec![*num],
             Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
             Operand::FunctionAddr(token)  => token.to_bytes(),

@@ -41,7 +41,7 @@ impl CommonLiteralRegs {
         };
 
         Ok(CommonLiteralRegs {
-            regs: (0..enum_size).map(|_| { let a = scope.reserve_register_back(); println!("reserving: {:?}", a); a} ).collect::<CompilerResult<Vec<Reg>>>()?
+            regs: (0..enum_size).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
         })
     }
 
@@ -172,5 +172,13 @@ impl InstructionSet {
         };
 
         Ok(Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))
+    }
+
+    pub fn logical_op(&self, op: &LogicalOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Command> {
+        match op {
+            // LogicalOperator::And =>
+            // LogicalOperator::Or =>
+            _ => Err(CompilerError::is_unsupported("logic operation"))
+        }
     }
 }
