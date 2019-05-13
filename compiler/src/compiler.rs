@@ -115,7 +115,7 @@ impl BytecodeCompiler {
     fn compile_var_decl(&mut self, kind: &VariableKind, decls: &[VariableDecl]) -> Result<Bytecode, CompilerError> {
         match kind {
             VariableKind::Let => { warn!("'let' will be treated as 'var'"); }
-            VariableKind::Const => { info!("'const' will be trated as 'var'"); }
+            VariableKind::Const => { info!("'const' will be treated as 'var'"); }
             _ => {}
         }
 
@@ -124,7 +124,7 @@ impl BytecodeCompiler {
                 Pat::Identifier(ident) => {
                     let reg = self.scopes.add_var_decl(ident.to_string())?;
                     match &decl.init {
-                        Some(expr) => self.compile_expr(expr, reg),
+                        Some(expr) => Ok(self.maybe_compile_expr(expr, Some(reg))?.0),
                         None => Ok(Bytecode::new())
                     }
                 }
@@ -270,14 +270,17 @@ impl BytecodeCompiler {
     }
 
     fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> CompilerResult<(Bytecode, Register)> {
-        let (opt_bytecode, opt_reg) = match expr {
+        let opt_reg = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
-                Ok(var) => match target_reg {
-                    Some(reg) => (Some(self.compile_operand_assignment(reg, Operand::Reg(var.register))?), Some(reg)),
-                    None => (Some(Bytecode::new()), Some(var.register)),
-                },
-                Err(_) => (None, None)
+                Ok(var) => Some(var.register),
+                Err(_) => None
             },
+            Expr::Literal(lit) => {
+                match self.scopes.get_lit_decl(lit) {
+                    Ok(lit_decl) => Some(lit_decl.register),
+                    Err(_) => None
+                }
+            }
             // TODO: Check test_member_expr
             // Expr::Member(member) => match member.object.borrow() {
             //         Expr::Ident(obj_ident) => match member.property.borrow() {
@@ -291,12 +294,18 @@ impl BytecodeCompiler {
             //         },
             //         _ => (None, target_reg)
             // },
-            _ => (None, None)
+            _ => None
         };
 
-        let target_reg = match opt_reg {
-            Some(reg) => reg,
-            None => self.scopes.reserve_register()?
+        let (opt_bytecode, target_reg) = match opt_reg {
+            Some(reg) => match target_reg {
+                Some(tar_reg) => (Some(self.compile_operand_assignment(tar_reg, Operand::Reg(reg))?), tar_reg),
+                None => (Some(Bytecode::new()), reg)
+            },
+            None => match target_reg {
+                Some(tar_reg) => (None, tar_reg),
+                None => (None, self.scopes.reserve_register()?)
+            }
         };
 
         let bytecode = match opt_bytecode {
@@ -320,7 +329,7 @@ impl BytecodeCompiler {
             Expr::Conditional(cond) => self.compile_conditional_expr(cond, target_reg),
             Expr::Function(_) => Err(CompilerError::are_unsupported("function expressions")),
             Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Reg(self.scopes.get_var(&ident)?.register)),
-            Expr::Literal(lit) => self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?),
+            Expr::Literal(lit) => self.compile_literal_expr(lit, target_reg),
             Expr::Logical(logical) => self.compile_logical_expr(logical, target_reg),
             Expr::Member(member) => self.compile_member_expr(member, target_reg),
             Expr::MetaProperty(_) => Err(CompilerError::are_unsupported("meta properties")),
@@ -424,6 +433,11 @@ impl BytecodeCompiler {
 
     fn compile_operand_assignment(&self, left: Register, right: Operand) -> BytecodeResult {
         Ok(Bytecode::new().add(self.isa.load_op(left, right)))
+    }
+
+    fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
+        self.scopes.add_lit_decl(lit, target_reg)?;
+        self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?)
     }
 
     fn compile_logical_expr(&mut self, logical: &LogicalExpr, target_reg: Reg) -> BytecodeResult {

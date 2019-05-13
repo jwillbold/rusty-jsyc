@@ -1,9 +1,24 @@
 use std::collections::*;
 
-use crate::error::{CompilerError};
+pub use resast::prelude::*;
+
+use crate::error::{CompilerError, CompilerResult};
 
 pub type Register = u8;
 pub type Reg = Register;
+
+// pub enum FunctionDeclKind {
+//     FunctionDecl,
+//     FunctionExpr,
+//     ArrowFunction,
+// }
+//
+// pub enum DeclarationType {
+//     Variable(VariableKind),
+//     Function(FunctionDeclKind),
+//     Literal,
+//     Intermediate
+// }
 
 #[derive(Debug, Clone)]
 pub struct Declaration
@@ -77,9 +92,15 @@ impl Scope {
     }
 }
 
+
 #[derive(Debug, Clone)]
 pub struct Scopes
 {
+    // TODO: It is not trivial to derive the Hash trait from resast::Literal,
+    // and thus, it cannot be easily used in HashMap. However, this would be
+    // a better choice.
+    // pub literals: HashMap<Literal, Declaration>,
+    pub literals: Vec<(Literal, Declaration)>,
     pub scopes: Vec<Scope>,
 }
 
@@ -87,8 +108,28 @@ impl Scopes
 {
     pub fn new() -> Scopes {
         Scopes {
+            // literals: HashMap::new()
+            literals: vec![],
             scopes: vec![ Scope::new() ],
         }
+    }
+
+    pub fn add_lit_decl(&mut self, lit: &Literal, reg: Reg) -> CompilerResult<()> {
+        // self.literals.insert(lit, Declaration{
+        //     register: reg,
+        //     is_function: false
+        // }).ok_or(
+        //     Err(CompilerError::Custom("Failed to insert literal to hashmap".into()))
+        // )
+
+        self.literals.push((lit.clone(),
+            Declaration{
+                register: reg,
+                is_function: false
+            }
+        ));
+
+        Ok(())
     }
 
     pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
@@ -119,6 +160,16 @@ impl Scopes
         self.current_scope()?.decls.get(var_name).ok_or(
             CompilerError::Custom(format!("The declaration '{}' does not exist", var_name))
         )
+    }
+
+    pub fn get_lit_decl(&self, literal: &Literal) -> CompilerResult<&Declaration> {
+        // self.literals.get(literal).ok_or(
+        //     Err(CompilerError::Custom("The requested literal does not exist".into()))
+        // )
+        match self.literals.iter().find(|&lit| lit.0 == *literal) {
+            Some(lit_and_decl) => Ok(&lit_and_decl.1),
+            None => Err(CompilerError::Custom("The requested literal does not exist".into()))
+        }
     }
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
