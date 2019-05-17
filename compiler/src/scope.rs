@@ -7,32 +7,24 @@ use crate::error::{CompilerError, CompilerResult};
 pub type Register = u8;
 pub type Reg = Register;
 
-// pub enum FunctionDeclKind {
-//     FunctionDecl,
-//     FunctionExpr,
-//     ArrowFunction,
-// }
-//
-// pub enum DeclarationType {
-//     Variable(VariableKind),
-//     Function(FunctionDeclKind),
-//     Literal,
-//     Intermediate
-// }
+
+#[derive(Debug, Clone)]
+pub enum DeclarationType {
+    Variable(VariableKind),
+    Function,
+    Literal,
+    // Intermediate
+}
+
+pub type DeclType = DeclarationType;
 
 #[derive(Debug, Clone)]
 pub struct Declaration
 {
-    // pub resast::Decl& ressa_decl,
     pub register: Register,
-    pub is_function: bool,
+    pub decl_type: DeclarationType,
 }
 
-impl Declaration {
-    pub fn is_function(&self) -> bool {
-        self.is_function
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Scope
@@ -74,11 +66,11 @@ impl Scope {
         )
     }
 
-    pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
+    pub fn add_decl(&mut self, decl: String, decl_type: DeclarationType) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
         self.decls.insert(decl, Declaration {
             register: unused_reg,
-            is_function: is_function
+            decl_type: decl_type
         });
         Ok(unused_reg)
     }
@@ -123,25 +115,21 @@ impl Scopes
         // )
 
         self.literals.push((lit.clone(),
-            Declaration{
+            Declaration {
                 register: reg,
-                is_function: false
+                decl_type: DeclarationType::Literal
             }
         ));
 
         Ok(())
     }
 
-    pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
-        self.add_decl(decl, false)
+    pub fn add_var_decl(&mut self, decl: String) -> CompilerResult<Register> {
+        self.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
     }
 
-    pub fn add_func_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
-        self.add_decl(decl, true)
-    }
-
-    pub fn add_decl(&mut self, decl: String, is_function: bool) -> Result<Register, CompilerError> {
-        self.current_scope_mut()?.add_decl(decl, is_function)
+    pub fn add_decl(&mut self, decl: String, decl_type: DeclarationType) -> CompilerResult<Register> {
+        self.current_scope_mut()?.add_decl(decl, decl_type)
     }
 
     pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {

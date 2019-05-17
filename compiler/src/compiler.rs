@@ -64,7 +64,7 @@ impl BytecodeCompiler {
     }
 
     pub fn add_var_decl(&mut self, decl: String) ->  CompilerResult<Reg> {
-        self.scopes.add_var_decl(decl)
+        self.scopes.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
     }
 
     pub fn compile(&mut self, source: &JSSourceCode) -> BytecodeResult {
@@ -115,7 +115,7 @@ impl BytecodeCompiler {
         decls.iter().map(|decl| {
             match &decl.id {
                 Pat::Identifier(ident) => {
-                    let reg = self.scopes.add_var_decl(ident.to_string())?;
+                    let reg = self.scopes.add_decl(ident.to_string(), DeclarationType::Variable(kind.clone()))?;
                     match &decl.init {
                         Some(expr) => Ok(self.maybe_compile_expr(expr, Some(reg))?.0),
                         None => Ok(Bytecode::new())
@@ -441,8 +441,12 @@ impl BytecodeCompiler {
     }
 
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
-        self.scopes.add_lit_decl(lit, target_reg)?;
-        self.compile_operand_assignment(target_reg, Operand::from_literal(lit.clone())?)
+        let operand = Operand::from_literal(lit.clone())?;
+        if operand.is_worth_caching() {
+            self.scopes.add_lit_decl(lit, target_reg)?;
+        }
+
+        self.compile_operand_assignment(target_reg, operand)
     }
 
     fn compile_logical_expr(&mut self, logical: &LogicalExpr, target_reg: Reg) -> BytecodeResult {
@@ -506,11 +510,11 @@ impl BytecodeCompiler {
         let arg_regs = func.params.iter().map(|param| {
             match param {
                 FunctionArg::Expr(expr) => match expr {
-                    Expr::Ident(ident) => self.scopes.add_var_decl(ident.to_string()),
+                    Expr::Ident(ident) => self.scopes.add_decl(ident.to_string(), DeclarationType::Function),
                     _ => Err(CompilerError::Custom("Only identifiers are accepted as function arguments".into()))
                 },
                 FunctionArg::Pat(pat) => match pat {
-                    Pat::Identifier(ident) => self.scopes.add_var_decl(ident.to_string()),
+                    Pat::Identifier(ident) => self.scopes.add_decl(ident.to_string(), DeclarationType::Function),
                     _ => Err(CompilerError::Custom("Only identifiers are accepted as function arguments".into()))
                 }
             }

@@ -180,6 +180,16 @@ impl Operand {
         Operand::BranchAddr(LabelAddrToken{ label })
     }
 
+    pub fn is_worth_caching(&self) -> bool {
+        match *self {
+            Operand::String(_) |
+            Operand::FloatNum(_) |
+            Operand::LongNum(_) |
+            Operand::RegistersArray(_) => true,
+            _ => false
+        }
+    }
+
     fn encode_string(string: String) -> Vec<u8> {
         if string.len() > u16::max_value() as usize {
             panic!("The string '{}' is too long. Encoded string may only have 65536 charachters.");
