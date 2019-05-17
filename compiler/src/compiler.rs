@@ -309,7 +309,7 @@ impl BytecodeCompiler {
 
     fn compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<Bytecode, CompilerError> {
         match expr {
-            // Expr::Array(array) =>,
+            Expr::Array(array_exprs) => self.compile_array_expr(array_exprs, target_reg),
             Expr::ArrowFunction(_) => Err(CompilerError::are_unsupported("Arrow functions")),
             Expr::ArrowParamPlaceHolder(_,_) => Err(CompilerError::are_unsupported("Arrow parameter placeholder")),
             Expr::Assignment(assignment) => self.compile_assignment_expr(assignment, target_reg),
@@ -324,18 +324,30 @@ impl BytecodeCompiler {
             Expr::Logical(logical) => self.compile_logical_expr(logical, target_reg),
             Expr::Member(member) => self.compile_member_expr(member, target_reg),
             Expr::MetaProperty(_) => Err(CompilerError::are_unsupported("meta properties")),
-            // Expr::New(new) =>
-            // Expr::Object(obj) =>
-            Expr::Sequence(seq) => Err(CompilerError::are_unsupported("seqeunce expressions")),
+            Expr::New(_) => Err(CompilerError::are_unsupported("object related expressions (new, this, {})")),
+            Expr::Object(_) => Err(CompilerError::are_unsupported("object related expressions (new, this, {})")),
+            Expr::Sequence(_) => Err(CompilerError::are_unsupported("seqeunce expressions")),
             Expr::Spread(_) => Err(CompilerError::are_unsupported("spread expressions")),
             Expr::Super => Err(CompilerError::are_unsupported("'super' expressions")),
             Expr::TaggedTemplate(_) => Err(CompilerError::are_unsupported("tagged template expressions")),
-            // Expr::This => self.compile_operand_assignment(target_reg, right: Operand)
+            Expr::This => Err(CompilerError::are_unsupported("object related expressions (new, this, {})")),
             Expr::Update(update) => self.compile_update_expr(update, target_reg),
             Expr::Unary(unary) => self.compile_unary_expr(unary, target_reg),
             Expr::Yield(_) => Err(CompilerError::are_unsupported("'yield' expressions")),
-            _ => Err(CompilerError::is_unsupported("Expression type")),
         }
+    }
+
+    fn compile_array_expr(&mut self, array: &ArrayExpr, target_reg: Reg) -> BytecodeResult {
+        let (bytecodes, regs): (Vec<Bytecode>, Vec<Reg>) = array.iter().map(|opt_expr| {
+            match opt_expr {
+                Some(expr) => self.maybe_compile_expr(expr, None),
+                None => Err(CompilerError::are_unsupported("'null' array fields"))
+            }
+        }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
+
+        Ok(bytecodes.into_iter().collect::<Bytecode>()
+            .add(Command::new(Instruction::LoadArray, vec![Operand::Reg(target_reg), Operand::RegistersArray(regs)]))
+        )
     }
 
     fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Register) -> BytecodeResult {

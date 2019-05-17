@@ -20,6 +20,7 @@ pub enum Instruction
     LoadFloatNum,
     LoadLongNum,
     LoadNum,
+    LoadArray,
 
     PropAccess,
     CallFunc,
@@ -63,6 +64,7 @@ impl Instruction {
             Instruction::LoadNum => 2,
             Instruction::LoadFloatNum => 3,
             Instruction::LoadLongNum => 4,
+            Instruction::LoadArray => 5,
 
             Instruction::PropAccess => 10,
             Instruction::CallFunc => 11,
