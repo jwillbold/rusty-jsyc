@@ -5,6 +5,9 @@ use std::iter::FromIterator;
 
 pub use resast::prelude::*;
 
+
+pub type BytecodeResult = Result<Bytecode, CompilerError>;
+
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
     fn length_in_bytes(&self) -> usize {

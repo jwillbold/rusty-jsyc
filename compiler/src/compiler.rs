@@ -1,6 +1,6 @@
 use crate::error::{CompilerError, CompilerResult};
 use crate::jshelper::{JSSourceCode, JSAst};
-use crate::bytecode::{Bytecode};
+use crate::bytecode::{Bytecode, BytecodeResult};
 use crate::scope::*;
 use crate::bytecode::{*};
 use crate::instruction_set::InstructionSet;
@@ -8,10 +8,7 @@ use crate::instruction_set::InstructionSet;
 pub use resast::prelude::*;
 pub use resast::prelude::Pat::Identifier;
 use std::borrow::Borrow;
-// use std::boxed::Box;
 use std::collections::HashMap;
-
-pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
 
 #[derive(Clone)]
@@ -66,24 +63,20 @@ impl BytecodeCompiler {
         }
     }
 
-    pub fn add_var_decl(&mut self, decl: String) -> Result<Register, CompilerError> {
+    pub fn add_var_decl(&mut self, decl: String) ->  CompilerResult<Reg> {
         self.scopes.add_var_decl(decl)
     }
 
-    pub fn compile(&mut self, source: &JSSourceCode) -> Result<Bytecode, CompilerError> {
-        let ast = match JSAst::parse(source) {
-            Ok(ast) => ast,
-            Err(e) => { return Err(CompilerError::from(e)); }
-        };
-
+    pub fn compile(&mut self, source: &JSSourceCode) -> BytecodeResult {
+        let ast = JSAst::parse(source)?;
         let mut bytecode = match ast.ast {
-            resast::Program::Mod(_) => { return Err(CompilerError::are_unsupported("ES6 modules")); },
+            resast::Program::Mod(_) => Err(CompilerError::are_unsupported("ES6 modules")),
             resast::Program::Script(s) => {
                 s.iter().map(|part| {
                     self.compile_program_part(part)
-                }).collect::<Result<Bytecode, CompilerError>>()?
+                }).collect::<Result<Bytecode, CompilerError>>()
             },
-        };
+        }?;
 
         bytecode = self.finalize_label_addresses(bytecode)?;
 
@@ -102,17 +95,17 @@ impl BytecodeCompiler {
         }
     }
 
-    fn compile_decl(&mut self, decl: &Decl) -> Result<Bytecode, CompilerError> {
+    fn compile_decl(&mut self, decl: &Decl) -> BytecodeResult{
         match decl {
             Decl::Variable(var_kind, var_decls) => self.compile_var_decl(var_kind, var_decls),
             Decl::Function(func) => self.compile_func(func),
-            Decl::Class(_) => Err(CompilerError::Custom("Class declarations are not supported".into())),
-            Decl::Import(_) => Err(CompilerError::Custom("Import declarations are not supported".into())),
-            Decl::Export(_) => Err(CompilerError::Custom("Export declarations are not supported".into())),
+            Decl::Class(_) => Err(CompilerError::are_unsupported("Class declarations")),
+            Decl::Import(_) => Err(CompilerError::are_unsupported("Import declarations")),
+            Decl::Export(_) => Err(CompilerError::are_unsupported("Export declarations")),
         }
     }
 
-    fn compile_var_decl(&mut self, kind: &VariableKind, decls: &[VariableDecl]) -> Result<Bytecode, CompilerError> {
+    fn compile_var_decl(&mut self, kind: &VariableKind, decls: &[VariableDecl]) -> BytecodeResult {
         match kind {
             VariableKind::Let => { warn!("'let' will be treated as 'var'"); }
             VariableKind::Const => { info!("'const' will be trated as 'var'"); }
@@ -128,15 +121,15 @@ impl BytecodeCompiler {
                         None => Ok(Bytecode::new())
                     }
                 }
-                Pat::Array(_) => Err(CompilerError::Custom("'Array Patterns' are not supported".into())),
-                Pat::Object(_) => Err(CompilerError::Custom("'Object Patterns' are not supported".into())),
-                Pat::RestElement(_) => Err(CompilerError::Custom("'Rest Elements' are not supported".into())),
-                Pat::Assignment(_) => Err(CompilerError::Custom("'Assignment Patterns' are not supported".into()))
+                Pat::Array(_) => Err(CompilerError::are_unsupported("'Array Patterns'")),
+                Pat::Object(_) => Err(CompilerError::are_unsupported("'Object Patterns'")),
+                Pat::RestElement(_) => Err(CompilerError::are_unsupported("'Rest Elements'")),
+                Pat::Assignment(_) => Err(CompilerError::are_unsupported("'Assignment Patterns'"))
             }
         }).collect()
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) -> Result<Bytecode, CompilerError> {
+    fn compile_stmt(&mut self, stmt: &Stmt) -> BytecodeResult{
         match stmt {
             Stmt::Expr(expr) => self.compile_expr(&expr, *self.scopes.get_throwaway_register()?),
             Stmt::Block(stmts) => stmts.iter().map(|part| self.compile_program_part(part)).collect(),
@@ -269,7 +262,7 @@ impl BytecodeCompiler {
             .add_label(loop_end_label))
     }
 
-    fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Register>) -> CompilerResult<(Bytecode, Register)> {
+    fn maybe_compile_expr(&mut self, expr: &Expr, target_reg: Option<Reg>) -> CompilerResult<(Bytecode, Reg)> {
         let (opt_bytecode, opt_reg) = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
                 Ok(var) => match target_reg {
@@ -307,7 +300,7 @@ impl BytecodeCompiler {
         Ok((bytecode, target_reg))
     }
 
-    fn compile_expr(&mut self, expr: &Expr, target_reg: Register) -> Result<Bytecode, CompilerError> {
+    fn compile_expr(&mut self, expr: &Expr, target_reg: Reg) -> BytecodeResult {
         match expr {
             Expr::Array(array_exprs) => self.compile_array_expr(array_exprs, target_reg),
             Expr::ArrowFunction(_) => Err(CompilerError::are_unsupported("Arrow functions")),
@@ -350,7 +343,7 @@ impl BytecodeCompiler {
         )
     }
 
-    fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Register) -> BytecodeResult {
+    fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Reg) -> BytecodeResult {
         let (left_bc, left_reg) = match &assign.left {
             AssignmentLeft::Pat(_) => { return Err(CompilerError::are_unsupported("Patterns in assignments")); },
             AssignmentLeft::Expr(expr) => self.maybe_compile_expr(&expr, None)?
@@ -378,7 +371,7 @@ impl BytecodeCompiler {
         )
     }
 
-    fn compile_call_expr(&mut self, call: &CallExpr, target_reg: Register) -> BytecodeResult {
+    fn compile_call_expr(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
         match call.callee.borrow() {
             Expr::Ident(ident) => {
                 if self.functions.iter().any(|func| func.ident==*ident) {
@@ -434,7 +427,7 @@ impl BytecodeCompiler {
         )))
     }
 
-    fn compile_operand_assignment(&self, left: Register, right: Operand) -> BytecodeResult {
+    fn compile_operand_assignment(&self, left: Reg, right: Operand) -> BytecodeResult {
         Ok(Bytecode::new().add(self.isa.load_op(left, right)))
     }
 
@@ -449,7 +442,7 @@ impl BytecodeCompiler {
         //     .add(self.isa.logical_op(logical.operator, target_reg, left_reg, right_reg)?)
     }
 
-    fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Register) -> BytecodeResult {
+    fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
         let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), None)?;
         let (prop_bc, prop_reg) =  match member.property.borrow() {
             Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(ident.to_string())), None)?,
@@ -463,7 +456,7 @@ impl BytecodeCompiler {
             )))
     }
 
-    fn compile_update_expr(&mut self, update: &UpdateExpr, _target_reg: Register) -> BytecodeResult {
+    fn compile_update_expr(&mut self, update: &UpdateExpr, _target_reg: Reg) -> BytecodeResult {
         if update.prefix {
             let (arg_bc, arg_reg) = self.maybe_compile_expr(update.argument.borrow(), None)?;
             Ok(arg_bc.add(self.isa.update_op(&update.operator, arg_reg)))
@@ -472,7 +465,7 @@ impl BytecodeCompiler {
         }
     }
 
-    fn compile_unary_expr(&mut self, unary: &UnaryExpr, target_reg: Register) -> BytecodeResult {
+    fn compile_unary_expr(&mut self, unary: &UnaryExpr, target_reg: Reg) -> BytecodeResult {
         if unary.prefix {
             let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
             Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)?))
