@@ -153,9 +153,8 @@ fn test_jump_stmts() {
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(0)]))
         .add_label(0)
         // Comp
-        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(3), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(3)]))
-        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(40)]))
+        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(37)]))
         // Body
         .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
         // Update
@@ -172,9 +171,8 @@ fn test_jump_stmts() {
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(0)]))
         .add_label(0)
         // Comp
-        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(3), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(3)]))
-        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(40)]))
+        .add(Command::new(Instruction::CompLessThan, vec![Operand::Reg(2), Operand::Reg(1), Operand::Reg(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(37)]))
         // Body
         .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
         // Update
@@ -257,8 +255,7 @@ fn test_member_expr() {
     run_test("var t = document.test; var a = document.test", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("test".into())]))
                 .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(2)]))
-                .add(Command::new(Instruction::LoadString, vec![Operand::Reg(4), Operand::String("test".into())]))
-                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(3), Operand::Reg(0), Operand::Reg(4)])));
+                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(3), Operand::Reg(0), Operand::Reg(2)])));
 
     // Assignment expression 'equal'
     let mut assignments_compiler = BytecodeCompiler::new();
@@ -304,12 +301,10 @@ fn test_compile_js_func_call() {
                 .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0), Operand::RegistersArray(vec![1])]))
             );
 
-    // TODO: get rid of the second LoadNum
     run_test("test(1);test(1);", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(1)]))
                 .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0), Operand::RegistersArray(vec![1])]))
-                .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(2), Operand::ShortNum(1)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(2), Operand::Reg(0), Operand::RegistersArray(vec![2])]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(2), Operand::Reg(0), Operand::RegistersArray(vec![1])]))
             );
 
     run_test("test(1, 2);", compiler, Bytecode::new()
