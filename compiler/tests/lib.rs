@@ -140,7 +140,7 @@ fn test_jump_stmts() {
         .add_label(1)
     );
 
-     run_test("var a = true; do{a=false;}while(a)", BytecodeCompiler::new(), Bytecode::new()
+    run_test("var a = true; do{a=false;}while(a)", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
         .add_label(0)
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
@@ -208,6 +208,24 @@ fn test_jump_stmts() {
         // Update
         .add(Command::new(Instruction::Jump, vec![Operand::LongNum(3)]))
         .add_label(1)
+    );
+
+    let mut compiler = BytecodeCompiler::new();
+    compiler.add_var_decl("a".into()).unwrap();
+    compiler.add_var_decl("b".into()).unwrap();
+
+    run_test("var c = a || b;", compiler.clone(), Bytecode::new()
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(2), Operand::Reg(0)]))
+        .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(2), Operand::LongNum(16)]))
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(2), Operand::Reg(1)]))
+        .add_label(0)
+    );
+
+    run_test("var c = a && b;", compiler.clone(), Bytecode::new()
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(2), Operand::Reg(0)]))
+        .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(2), Operand::LongNum(16)]))
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(2), Operand::Reg(1)]))
+        .add_label(0)
     );
 }
 

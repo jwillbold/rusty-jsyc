@@ -432,14 +432,22 @@ impl BytecodeCompiler {
     }
 
     fn compile_logical_expr(&mut self, logical: &LogicalExpr, target_reg: Reg) -> BytecodeResult {
-        let (left_bc, left_reg) = self.maybe_compile_expr(logical.left.borrow(), None)?;
-        let (right_bc, right_reg) = self.maybe_compile_expr(logical.right.borrow(), None)?;
+        let (left_bc, _) = self.maybe_compile_expr(logical.left.borrow(), Some(target_reg))?;
+        let (right_bc, _) = self.maybe_compile_expr(logical.right.borrow(), Some(target_reg))?;
 
-        unimplemented!("logic expresions")
-        // TODO how to lazy-evaluate right
-        // left_bc
-        //     .add(Command::new(Instruction::LogicAnd, ))
-        //     .add(self.isa.logical_op(logical.operator, target_reg, left_reg, right_reg)?)
+        let after_right_label = self.label_generator.generate_label();
+
+        match logical.operator {
+            LogicalOperator::And => Ok(left_bc
+                .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
+                .combine(right_bc)
+                .add_label(after_right_label)),
+            LogicalOperator::Or => Ok(left_bc
+                .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
+                .combine(right_bc)
+                .add_label(after_right_label))
+        }
+
     }
 
     fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
