@@ -10,6 +10,7 @@ pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
+
     fn length_in_bytes(&self) -> usize {
         self.to_bytes().len()
     }
