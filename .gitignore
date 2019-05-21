@@ -83,6 +83,7 @@ build
 
 .directory
 
+*.vscode*
 
 # Rust
-*/target/*
+*target/*
