@@ -1,8 +1,18 @@
-
+use ressa::{Parser};
 
 pub struct JSSourceCode
 {
     pub source_code: String
+}
+
+impl JSSourceCode {
+    pub fn new(source_code: String) -> Self {
+        JSSourceCode { source_code }
+    }
+
+    pub fn from_str(js_code: &str) -> Self {
+        JSSourceCode::new(js_code.into())
+    }
 }
 
 pub struct JSAst
@@ -12,7 +22,7 @@ pub struct JSAst
 
 impl JSAst {
     pub fn parse(source: &JSSourceCode) -> Result<Self, ressa::Error> {
-        let mut parser = match ressa::Parser::new(&source.source_code) {
+        let mut parser = match Parser::new(&source.source_code) {
             Ok(parser) => parser,
             Err(e) => { return Err(e); }
         };

@@ -173,12 +173,4 @@ impl InstructionSet {
 
         Ok(Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))
     }
-
-    pub fn logical_op(&self, op: &LogicalOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Command> {
-        match op {
-            // LogicalOperator::And =>
-            // LogicalOperator::Or =>
-            _ => Err(CompilerError::is_unsupported("logic operation"))
-        }
-    }
 }

@@ -350,7 +350,7 @@ impl Bytecode {
         self
     }
 
-    pub fn encode(&self) -> String {
+    pub fn encode_base64(&self) -> String {
         base64::encode(&self.to_bytes())
     }
 
