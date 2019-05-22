@@ -1,0 +1,32 @@
+#[macro_use]
+extern crate test_exec;
+
+const DEFAULT_OUTPUT: &str = "Starting to compile bytecode...\nFinished bytecode compilation\nStarting to compose VM and bytecode...\n";
+
+#[test]
+fn test_empty_bc_std_vm() {
+    exec!{
+        "composer",
+        args: ["tests/data/empty/empty/main.js", "../vm/vm.js", "tests/.compiled/empty/empty"],
+        cwd: ".",
+        log: true,
+
+        code: 0,
+        stdout: DEFAULT_OUTPUT,
+        stderr: []
+    };
+}
+
+// #[test]
+// fn test_unit_tests() {
+//     exec!{
+//         "composer",
+//         args: ["-p", "/"],
+//         cwd: "/",
+//         log: true,
+//
+//         code: 0,
+//         stdout: b"Hello, world!\n",
+//         stderr: []
+//     };
+// }

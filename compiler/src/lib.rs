@@ -17,5 +17,5 @@ pub use crate::bytecode::{Bytecode, BytecodeElement, Command, Instruction, Opera
 pub use crate::compiler::{BytecodeCompiler};
 pub use crate::error::{CompilerResult, CompilerError};
 pub use crate::instruction_set::{InstructionSet};
-pub use crate::jshelper::{JSSourceCode};
+pub use crate::jshelper::{JSSourceCode, JSAst};
 pub use crate::scope::{Register};

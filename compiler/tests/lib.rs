@@ -1,7 +1,6 @@
 extern crate compiler;
 use compiler::*;
 use jshelper::{JSSourceCode};
-use bytecode::*;
 
 #[cfg(test)]
 fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc: compiler::Bytecode) {
@@ -19,6 +18,15 @@ fn check_is_error(js_code: &str, mut compiler: compiler::BytecodeCompiler) {
     };
 
     assert!(compiler.compile(&js_source).is_err());
+}
+
+#[test]
+fn test_compiler_api() {
+    let mut compiler = BytecodeCompiler::new();
+    let js_code = JSSourceCode::from_str("var a = 10");
+
+    let bytecode = compiler.compile(&js_code).unwrap();
+    assert_eq!(bytecode.encode_base64(), "AgAK");
 }
 
 #[test]

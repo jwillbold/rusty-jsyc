@@ -86,4 +86,10 @@ build
 *.vscode*
 
 # Rust
-*target/*
+/target/
+Cargo.lock
+**/*.rs.bk
+
+# For this project
+**/.compiled/*
+!**/.compiled/readme

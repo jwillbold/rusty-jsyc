@@ -7,4 +7,10 @@ edition = "2018"
 [dependencies.compiler]
 path = "../compiler"
 
+[dev-dependencies]
+test-exec = "0.1.0"
+
 [dependencies]
+resw = "*"
+resast = "*"
+ressa = "*"

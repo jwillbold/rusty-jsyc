@@ -1,0 +1,2 @@
+This dir contains the compiled bytecode and a vm ready to be used. These testcases will then be
+called by the node.js test infrastructure.
