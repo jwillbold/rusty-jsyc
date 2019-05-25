@@ -6,7 +6,7 @@ use crate::bytecode::{*};
 use crate::instruction_set::InstructionSet;
 
 pub use resast::prelude::*;
-pub use resast::prelude::Pat::Identifier;
+use resast::prelude::Identifier;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 
@@ -41,12 +41,25 @@ impl LabelGenerator {
 }
 
 #[derive(Clone)]
+pub struct DeclDependency {
+    pub ident: Identifier,
+    pub reg: Register
+}
+
+impl DeclDependency {
+    pub fn new(ident: Identifier, reg: Register) -> Self {
+        DeclDependency{ ident, reg }
+    }
+}
+
+#[derive(Clone)]
 pub struct BytecodeCompiler
 {
     scopes: Scopes,
     functions: Vec<BytecodeFunction>,
     isa: InstructionSet,
-    label_generator: LabelGenerator
+    label_generator: LabelGenerator,
+    decl_dependencies: Vec<DeclDependency>
 }
 
 impl BytecodeCompiler {
@@ -59,12 +72,17 @@ impl BytecodeCompiler {
             scopes: scopes,
             functions: Vec::new(),
             isa: isa,
-            label_generator: LabelGenerator::new()
+            label_generator: LabelGenerator::new(),
+            decl_dependencies: Vec::new()
         }
     }
 
     pub fn add_var_decl(&mut self, decl: String) ->  CompilerResult<Reg> {
         self.scopes.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
+    }
+
+    pub fn decl_dependencies(&self) -> &Vec<DeclDependency> {
+        &self.decl_dependencies
     }
 
     pub fn compile(&mut self, source: &JSSourceCode) -> BytecodeResult {
@@ -321,7 +339,7 @@ impl BytecodeCompiler {
             Expr::Call(call) => self.compile_call_expr(call, target_reg),
             Expr::Conditional(cond) => self.compile_conditional_expr(cond, target_reg),
             Expr::Function(_) => Err(CompilerError::are_unsupported("function expressions")),
-            Expr::Ident(ident) => self.compile_operand_assignment(target_reg, Operand::Reg(self.scopes.get_var(&ident)?.register)),
+            Expr::Ident(ident) => self.compile_identifier_expr(ident, target_reg),
             Expr::Literal(lit) => self.compile_literal_expr(lit, target_reg),
             Expr::Logical(logical) => self.compile_logical_expr(logical, target_reg),
             Expr::Member(member) => self.compile_member_expr(member, target_reg),
@@ -438,6 +456,18 @@ impl BytecodeCompiler {
 
     fn compile_operand_assignment(&self, left: Reg, right: Operand) -> BytecodeResult {
         Ok(Bytecode::new().add(self.isa.load_op(left, right)))
+    }
+
+    fn compile_identifier_expr(&mut self, ident: &Identifier, target_reg: Reg) -> BytecodeResult {
+        match self.scopes.get_var(&ident) {
+            Ok(decl) => {
+                self.compile_operand_assignment(target_reg, Operand::Reg(decl.register))
+            },
+            Err(_) => {
+                self.decl_dependencies.push(DeclDependency::new(ident.to_string(), target_reg));
+                Ok(Bytecode::new())
+            }
+        }
     }
 
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {

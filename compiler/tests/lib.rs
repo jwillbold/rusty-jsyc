@@ -12,6 +12,21 @@ fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc
 }
 
 #[cfg(test)]
+fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: compiler::Bytecode) {
+    let mut compiler = BytecodeCompiler::new();
+    let js_source = JSSourceCode {
+        source_code: js_code.to_string()
+    };
+
+    assert_eq!(compiler.compile(&js_source).unwrap(), expected_bc);
+
+    for (decl_dep, expected_decl_dep) in compiler.decl_dependencies().iter().zip(expected_decl_deps) {
+        assert_eq!(&decl_dep.ident.as_str(), expected_decl_dep);
+    }
+}
+
+
+#[cfg(test)]
 fn check_is_error(js_code: &str, mut compiler: compiler::BytecodeCompiler) {
     let js_source = JSSourceCode {
         source_code: js_code.to_string()
@@ -71,6 +86,11 @@ fn test_compile_js_decls() {
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(1)]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![0])]))
+    );
+
+    run_test_deps("var a = document.cookie;", &["document"], Bytecode::new()
+        .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("cookie".into())]))
+        .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(0), Operand::Reg(1), Operand::Reg(2)]))
     );
 
     check_is_error("class C {}", BytecodeCompiler::new());

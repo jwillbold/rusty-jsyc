@@ -1,7 +1,7 @@
 ### Bytecode Compiler
 - [ ] Member expression caching
 - [ ] More refined scoping
-- [ ] External dependencies logging
+- [x] External dependencies logging
 - [ ] Instruction dependencies list
 - [ ] Include common literals in literal caching
 
