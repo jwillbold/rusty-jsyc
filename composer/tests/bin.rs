@@ -17,16 +17,16 @@ fn test_empty_bc_std_vm() {
     };
 }
 
-// #[test]
-// fn test_unit_tests() {
-//     exec!{
-//         "composer",
-//         args: ["-p", "/"],
-//         cwd: "/",
-//         log: true,
-//
-//         code: 0,
-//         stdout: b"Hello, world!\n",
-//         stderr: []
-//     };
-// }
+#[test]
+fn test_compose_snake() {
+    exec!{
+        "composer",
+        args: ["../playground/unobfuscated/snake_helper.js", "../vm/vm.js", "../playground/obfuscated"],
+        cwd: ".",
+        log: true,
+
+        code: 0,
+        stdout: DEFAULT_OUTPUT,
+        stderr: []
+    };
+}
