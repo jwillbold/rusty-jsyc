@@ -106,7 +106,7 @@ impl Scopes
         }
     }
 
-    pub fn add_lit_decl(&mut self, lit: &Literal, reg: Reg) -> CompilerResult<()> {
+    pub fn add_lit_decl(&mut self, lit: Literal, reg: Reg) -> CompilerResult<()> {
         // self.literals.insert(lit, Declaration{
         //     register: reg,
         //     is_function: false
@@ -114,7 +114,7 @@ impl Scopes
         //     Err(CompilerError::Custom("Failed to insert literal to hashmap".into()))
         // )
 
-        self.literals.push((lit.clone(),
+        self.literals.push((lit,
             Declaration {
                 register: reg,
                 decl_type: DeclarationType::Literal

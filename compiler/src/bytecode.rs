@@ -1,4 +1,4 @@
-use crate::error::{CompilerError};
+use crate::error::{CompilerError, CompilerResult};
 use crate::scope::Register;
 use std::{u16};
 use std::iter::FromIterator;
@@ -130,6 +130,101 @@ impl ToBytes for LabelAddrToken {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum BytecodeLiteral
+{
+    Null,
+    String(String),
+    FloatNum(f64),
+    IntNumber(i64),
+    Bool(bool),
+    // RegEx(ressa::expr::RegEx)
+}
+
+impl BytecodeLiteral {
+    pub fn from_lit(lit: Literal) -> CompilerResult<Self> {
+        match lit {
+            Literal::Null => Ok(BytecodeLiteral::Null),
+            Literal::String(string) => Ok(BytecodeLiteral::String(string)),
+            Literal::Number(num_string) => {
+                if let Ok(dec_num) = num_string.parse::<i64>() {
+                    Ok(BytecodeLiteral::IntNumber(dec_num))
+                } else if let Ok(float_num) = num_string.parse::<f64>() {
+                    Ok(BytecodeLiteral::FloatNum(float_num))
+                } else if num_string.len() > 2 {
+                    if &num_string[..2] == "0x" {
+                        if let Ok(hex_num) = i64::from_str_radix(&num_string[2..], 16) {
+                            Ok(BytecodeLiteral::IntNumber(hex_num))
+                        } else {
+                            Err(CompilerError::Custom(format!("Failed to parse hex-numeric literal '{}'", num_string)))
+                        }
+                    } else if &num_string[..2] == "0o" {
+                        if let Ok(oct_num) = i64::from_str_radix(&num_string[2..], 8) {
+                            Ok(BytecodeLiteral::IntNumber(oct_num))
+                        } else {
+                            Err(CompilerError::Custom(format!("Failed to parse oct-numeric literal '{}'", num_string)))
+                        }
+                    } else if &num_string[..2] == "0b" {
+                        if let Ok(oct_num) = i64::from_str_radix(&num_string[2..], 2) {
+                            Ok(BytecodeLiteral::IntNumber(oct_num))
+                        } else {
+                            Err(CompilerError::Custom(format!("Failed to parse bin-numeric literal '{}'", num_string)))
+                        }
+                    } else {
+                        Err(CompilerError::Custom(format!("Failed to parse numeric literal '{}'", num_string)))
+                    }
+                } else {
+                    Err(CompilerError::Custom(format!("Failed to parse numeric literal '{}'", num_string)))
+                }
+            },
+            Literal::Boolean(b) => Ok(BytecodeLiteral::Bool(b)),
+            Literal::RegEx(_) |
+            Literal::Template(_) => Err(CompilerError::are_unsupported("regex and template literals"))
+        }
+    }
+}
+
+#[test]
+fn test_bytecode_literal_from_literal() {
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0".into())).unwrap(),
+                BytecodeLiteral::IntNumber(0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1".into())).unwrap(),
+                BytecodeLiteral::IntNumber(1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0x10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(16));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0b10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(2));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0o10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(8));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1".into())).unwrap(),
+                BytecodeLiteral::FloatNum(1.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0e0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1e2".into())).unwrap(),
+                BytecodeLiteral::FloatNum(110.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E2".into())).unwrap(),
+                BytecodeLiteral::FloatNum(10.0));
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operand
@@ -161,7 +256,7 @@ impl Operand {
 
     pub fn from_literal(lit: Literal) -> Result<Self, CompilerError> {
         match lit {
-            Literal::Null => Ok(Operand::Reg(0)), //TODO: Register of predefined void 0,
+            Literal::Null => Ok(Operand::Reg(253)), //TODO: Register of predefined void 0,
             Literal::String(string) => Ok(Operand::String(string)),
             Literal::Number(num) => Ok(Operand::ShortNum(num.parse().unwrap())), //TODO
             Literal::Boolean(bool) => Ok(Operand::ShortNum(bool as u8)),

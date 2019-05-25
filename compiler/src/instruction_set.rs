@@ -1,5 +1,5 @@
 use crate::bytecode::*;
-use crate::scope::{Reg, Scope};
+use crate::scope::{Reg, Scope, Scopes};
 use crate::error::{CompilerError, CompilerResult};
 
 pub use resast::prelude::*;
@@ -43,6 +43,17 @@ impl CommonLiteralRegs {
         Ok(CommonLiteralRegs {
             regs: (0..enum_size).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
         })
+    }
+
+    pub fn add_to_lit_cache(&self, scopes: &mut Scopes) -> CompilerResult<()> {
+        let e = CommonLiteral::Num0;
+
+        match e {
+            CommonLiteral::Num0 => { scopes.add_lit_decl(Literal::Number("1".into()), self.regs[0])?; },
+            _ => {}
+        }
+
+        Ok(())
     }
 
     pub fn reg(&self, common_lit: &CommonLiteral) -> Reg {
@@ -138,9 +149,9 @@ impl InstructionSet {
             // Not,
             // Tilde,
             // TypeOf,
-            // Void,
+            UnaryOperator::Void => { return Err(CompilerError::Custom("The 'void' must be handled on compiler-level".into())); },
             // Delete,
-            _ => { return Err(CompilerError::is_unsupported("Unary operation")); }
+            _ => { return Err(CompilerError::is_unsupported("Unary operation", op)); }
         })
     }
 
@@ -160,7 +171,7 @@ impl InstructionSet {
             BinaryOperator::Plus => Instruction::Add,
             BinaryOperator::Minus => Instruction::Minus,
             BinaryOperator::Times => Instruction::Mul,
-            // Over,
+            BinaryOperator::Over => Instruction::Div,
             // Mod,
             // Or,
             // XOr,
@@ -168,7 +179,7 @@ impl InstructionSet {
             // In,
             // InstanceOf,
             // PowerOf,
-            _ => { return Err(CompilerError::is_unsupported("Binary operation")); }
+            _ => { return Err(CompilerError::is_unsupported("Binary operation", op)); }
         };
 
         Ok(Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))

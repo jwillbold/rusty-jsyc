@@ -3,7 +3,7 @@ use crate::jshelper::{JSSourceCode, JSAst};
 use crate::bytecode::{Bytecode, BytecodeResult};
 use crate::scope::*;
 use crate::bytecode::{*};
-use crate::instruction_set::InstructionSet;
+use crate::instruction_set::{InstructionSet, CommonLiteral};
 
 pub use resast::prelude::*;
 use resast::prelude::Identifier;
@@ -67,6 +67,7 @@ impl BytecodeCompiler {
     pub fn new() -> Self {
         let mut scopes = Scopes::new();
         let isa = InstructionSet::default(scopes.current_scope_mut().unwrap());
+        isa.common_lits().add_to_lit_cache(&mut scopes).unwrap();
 
         BytecodeCompiler{
             scopes: scopes,
@@ -155,11 +156,11 @@ impl BytecodeCompiler {
             Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statments")),
             Stmt::With(_) => Err(CompilerError::are_unsupported("'with' statments")),
             Stmt::Return(ret) => self.compile_return_stmt(ret),
-            // Stmt::Labled()
-            // Stmt::Break()
-            // Stmt::Continue()
+            Stmt::Labeled(_) => Err(CompilerError::are_unsupported("Label statments")),
+            Stmt::Break(_) => Err(CompilerError::are_unsupported("'break' statments")),
+            Stmt::Continue(_) => Err(CompilerError::are_unsupported("'continue' statments")),
             Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt),
-            // Stmt::Switch()
+            Stmt::Switch(_) => Err(CompilerError::are_unsupported("'switch' statments")),
             Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
             Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
             Stmt::While(while_stmt) => self.compile_while_stmt(while_stmt),
@@ -168,7 +169,6 @@ impl BytecodeCompiler {
             Stmt::ForIn(_) => Err(CompilerError::are_unsupported("for-in statments")),
             Stmt::ForOf(_) => Err(CompilerError::are_unsupported("for-of statments")),
             Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
-            _ => Err(CompilerError::is_unsupported("Statement type"))
         }
     }
 
@@ -473,7 +473,7 @@ impl BytecodeCompiler {
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
         let operand = Operand::from_literal(lit.clone())?;
         if operand.is_worth_caching() {
-            self.scopes.add_lit_decl(lit, target_reg)?;
+            self.scopes.add_lit_decl(lit.clone(), target_reg)?;
         }
 
         self.compile_operand_assignment(target_reg, operand)
@@ -523,8 +523,15 @@ impl BytecodeCompiler {
 
     fn compile_unary_expr(&mut self, unary: &UnaryExpr, target_reg: Reg) -> BytecodeResult {
         if unary.prefix {
-            let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
-            Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)?))
+            if UnaryOperator::Void == unary.operator {
+                let (arg_bc, _) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
+                let void0_reg = self.isa.common_literal_reg(&CommonLiteral::Void0);
+                Ok(arg_bc
+                    .combine(self.compile_operand_assignment(target_reg, Operand::Reg(void0_reg))?))
+            } else {
+                let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
+                Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)?))
+            }
         } else {
             Err(CompilerError::are_unsupported("suffix unary expressions"))
         }

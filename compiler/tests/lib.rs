@@ -300,6 +300,13 @@ fn test_cond_expr() {
 }
 
 #[test]
+fn test_unary_expr() {
+    run_test("var a = void 0", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(253)]))
+    );
+}
+
+#[test]
 fn test_compile_js_func_call() {
     let mut compiler = BytecodeCompiler::new();
     assert!(compiler.add_var_decl("test".into()).is_ok());

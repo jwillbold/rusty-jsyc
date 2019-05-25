@@ -11,8 +11,10 @@ pub enum CompilerError {
 pub type CompilerResult<V> = Result<V, CompilerError>;
 
 impl CompilerError {
-    pub fn is_unsupported(error: &str) -> Self {
-        CompilerError::Unsupported(format!("'{}' is not supported", error))
+    pub fn is_unsupported<D>(error: &str, unsuppoted: D) -> Self
+        where D: std::fmt::Debug
+    {
+        CompilerError::Unsupported(format!("{} '{:?}' is not supported", error, unsuppoted))
     }
 
     pub fn are_unsupported(error: &str) -> Self {
