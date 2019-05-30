@@ -68,10 +68,14 @@ impl Scope {
     }
 
     pub fn try_reserve_specific_reg(&mut self, specific_reg: Register) -> CompilerResult<Register> {
-        match self.unused_register.iter().enumerate().find(|(i, &reg)| reg == specific_reg) {
-            Some((i, reg)) => {
-                self.unused_register.remove(i);
-                Ok(*reg)
+        let maybe_idx = self.unused_register.iter().enumerate().find_map(|(i, &reg)| {
+            if reg == specific_reg { Some(i) } else { None }
+        });
+
+        match maybe_idx {
+            Some(idx) => {
+                self.unused_register.remove(idx);
+                Ok(specific_reg)
             },
             None => Err(CompilerError::Custom(format!("Failed to reserve specific reg {}", specific_reg)))
         }

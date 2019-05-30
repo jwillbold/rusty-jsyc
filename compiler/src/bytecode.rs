@@ -38,9 +38,6 @@ pub enum Instruction
     Jump,
     JumpCondNeg,
 
-    LogicAnd,
-    LogicOr,
-
     CompEqual,
     CompNotEqual,
     CompStrictEqual,

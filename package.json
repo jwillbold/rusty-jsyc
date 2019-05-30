@@ -7,8 +7,9 @@
     "test": "_mocha --recursive ./vm/tests/*.test.js"
   },
   "dependencies": {
-    "mocha": "~6.1.2",
-    "chai": "~4.2.0"
+    "atob": "^2.1.2",
+    "chai": "~4.2.0",
+    "mocha": "~6.1.2"
   },
   "description": "A blogpost about the basics of JavaScript virtualization obfuscation",
   "main": "index.js",
