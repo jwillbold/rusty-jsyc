@@ -287,7 +287,7 @@ impl BytecodeCompiler {
                 Err(_) => None
             },
             Expr::Literal(lit) => {
-                match self.scopes.get_lit_decl(lit) {
+                match self.scopes.get_lit_decl(&BytecodeLiteral::from_lit(lit.clone())?) {
                     Ok(lit_decl) => Some(lit_decl.register),
                     Err(_) => None
                 }
@@ -473,7 +473,7 @@ impl BytecodeCompiler {
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
         let operand = Operand::from_literal(lit.clone())?;
         if operand.is_worth_caching() {
-            self.scopes.add_lit_decl(lit.clone(), target_reg)?;
+            self.scopes.add_lit_decl(BytecodeLiteral::from_lit(lit.clone())?, target_reg)?;
         }
 
         self.compile_operand_assignment(target_reg, operand)

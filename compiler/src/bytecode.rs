@@ -130,7 +130,7 @@ impl ToBytes for LabelAddrToken {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BytecodeLiteral
 {
     Null,

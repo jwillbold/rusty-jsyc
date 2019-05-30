@@ -2,6 +2,7 @@ use std::collections::*;
 
 pub use resast::prelude::*;
 
+use crate::bytecode::{BytecodeLiteral};
 use crate::error::{CompilerError, CompilerResult};
 
 pub type Register = u8;
@@ -91,8 +92,8 @@ pub struct Scopes
     // TODO: It is not trivial to derive the Hash trait from resast::Literal,
     // and thus, it cannot be easily used in HashMap. However, this would be
     // a better choice.
-    // pub literals: HashMap<Literal, Declaration>,
-    pub literals: Vec<(Literal, Declaration)>,
+    // pub literals_cache: HashMap<BytecodeLiteral, Declaration>,
+    pub literals: Vec<(BytecodeLiteral, Declaration)>,
     pub scopes: Vec<Scope>,
 }
 
@@ -100,13 +101,13 @@ impl Scopes
 {
     pub fn new() -> Scopes {
         Scopes {
-            // literals: HashMap::new()
+            // literals_cache: HashMap::new(),
             literals: vec![],
             scopes: vec![ Scope::new() ],
         }
     }
 
-    pub fn add_lit_decl(&mut self, lit: Literal, reg: Reg) -> CompilerResult<()> {
+    pub fn add_lit_decl(&mut self, literal: BytecodeLiteral, reg: Reg) -> CompilerResult<()> {
         // self.literals.insert(lit, Declaration{
         //     register: reg,
         //     is_function: false
@@ -114,7 +115,7 @@ impl Scopes
         //     Err(CompilerError::Custom("Failed to insert literal to hashmap".into()))
         // )
 
-        self.literals.push((lit,
+        self.literals.push((literal,
             Declaration {
                 register: reg,
                 decl_type: DeclarationType::Literal
@@ -150,7 +151,7 @@ impl Scopes
         )
     }
 
-    pub fn get_lit_decl(&self, literal: &Literal) -> CompilerResult<&Declaration> {
+    pub fn get_lit_decl(&self, literal: &BytecodeLiteral) -> CompilerResult<&Declaration> {
         // self.literals.get(literal).ok_or(
         //     Err(CompilerError::Custom("The requested literal does not exist".into()))
         // )

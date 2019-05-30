@@ -4,24 +4,92 @@ use crate::error::{CompilerError, CompilerResult};
 
 pub use resast::prelude::*;
 
-#[derive(Clone)]
-pub enum CommonLiteral
+
+macro_rules! make_enum_helper{
+    (enum $name:ident { $($variants:ident),* }) =>
+    (
+        #[derive(Clone, PartialEq, Debug)]
+        pub enum $name {
+            $($variants,)*
+            __VarinatsCountHelper__
+        }
+        impl $name {
+            pub const fn enum_size() -> usize {
+                $name::__VarinatsCountHelper__ as usize
+            }
+
+            pub fn enum_iterator() -> std::slice::Iter<'static, $name> {
+                const VARINTS: [$name; $name::enum_size()] = [$($name::$variants,)*];
+                VARINTS.into_iter()
+            }
+
+            pub fn variant_index(&self) -> usize {
+                self.clone() as usize
+            }
+        }
+    )
+}
+
+#[test]
+fn test_make_enum_helper() {
+    make_enum_helper!(
+        enum TestEnumA {
+            A,
+            B,
+            C
+        }
+    );
+
+    assert_eq!(TestEnumA::enum_size(), 3);
+
+    let mut iter = TestEnumA::enum_iterator();
+
+    assert_eq!(iter.next(), Some(&TestEnumA::A));
+    assert_eq!(iter.next(), Some(&TestEnumA::B));
+    assert_eq!(iter.next(), Some(&TestEnumA::C));
+    assert_eq!(iter.next(), None);
+
+    assert_eq!(TestEnumA::A.variant_index(), 0);
+    assert_eq!(TestEnumA::B.variant_index(), 1);
+    assert_eq!(TestEnumA::C.variant_index(), 2);
+
+    make_enum_helper!(
+        enum TestEnumB {
+            A
+        }
+    );
+
+    assert_eq!(TestEnumB::enum_size(), 1);
+
+    let mut iter = TestEnumB::enum_iterator();
+
+    assert_eq!(iter.next(), Some(&TestEnumB::A));
+    assert_eq!(iter.next(), None);
+
+    assert_eq!(TestEnumB::A.variant_index(), 0);
+}
+
+
+make_enum_helper!(
+enum CommonLiteral
 {
     Num0,
     Num1,
     Void0 // Undefined
     // EmptyString
-}
+});
 
 impl CommonLiteral {
-    pub fn idx(&self) -> usize {
-        match self {
-            CommonLiteral::Num0 => 0,
-            CommonLiteral::Num1 => 1,
-            CommonLiteral::Void0 => 2,
+    pub fn to_literal(&self) -> BytecodeLiteral {
+        match &self {
+            CommonLiteral::Num0 => BytecodeLiteral::IntNumber(0),
+            CommonLiteral::Num1 => BytecodeLiteral::IntNumber(1),
+            CommonLiteral::Void0 => BytecodeLiteral::Null,
+            _ => panic!("")
         }
     }
 }
+
 
 #[derive(Clone)]
 pub struct CommonLiteralRegs
@@ -31,33 +99,21 @@ pub struct CommonLiteralRegs
 
 impl CommonLiteralRegs {
     pub fn new(scope: &mut Scope) -> CompilerResult<Self> {
-        // This construct is a reminder, that will fail to compile if the enum CommonLiteral
-        // is changed without adjusting this enum_size. This it will be almost impossible
-        // to forget changing this enum_size when changing the num above
-        // Rust 1.34.0 completly optmizes this out.
-        let reminder = CommonLiteral::Num0;
-        let enum_size = match reminder {
-            CommonLiteral::Num0 | CommonLiteral::Num1 | CommonLiteral::Void0 => 3
-        };
-
         Ok(CommonLiteralRegs {
-            regs: (0..enum_size).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
+            regs: (0..CommonLiteral::enum_size()).map(|_| scope.reserve_register_back()).collect::<CompilerResult<Vec<Reg>>>()?
         })
     }
 
     pub fn add_to_lit_cache(&self, scopes: &mut Scopes) -> CompilerResult<()> {
-        let e = CommonLiteral::Num0;
-
-        match e {
-            CommonLiteral::Num0 => { scopes.add_lit_decl(Literal::Number("1".into()), self.regs[0])?; },
-            _ => {}
+        for common_lit in CommonLiteral::enum_iterator() {
+            scopes.add_lit_decl(common_lit.to_literal(), self.regs[common_lit.variant_index()])?;
         }
 
         Ok(())
     }
 
     pub fn reg(&self, common_lit: &CommonLiteral) -> Reg {
-        self.regs[common_lit.idx()]
+        self.regs[common_lit.variant_index()]
     }
 }
 
