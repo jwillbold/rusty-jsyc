@@ -48,20 +48,20 @@ var snake_direction = DIRECTION_LEFT;
 var updateSpeed = 100;
 var updater;
 
-// function drawGrid() {
-//   ctx.beginPath();
-//   for (var x = fieldLength; x <= bw; x += fieldLength) {
-//       ctx.moveTo(0.5 + x, 0);
-//       ctx.lineTo(0.5 + x, bh);
-//   }
-//   for (var y = fieldLength; y <= bh; y += fieldLength) {
-//       ctx.moveTo(0, 0.5 + y);
-//       ctx.lineTo(bw, 0.5 + y);
-//   }
-//   ctx.strokeStyle = "grey";
-//   ctx.stroke();
-//   ctx.closePath();
-// }
+function drawGrid() {
+  ctx.beginPath();
+  for (var x = fieldLength; x <= bw; x += fieldLength) {
+      ctx.moveTo(0.5 + x, 0);
+      ctx.lineTo(0.5 + x, bh);
+  }
+  for (var y = fieldLength; y <= bh; y += fieldLength) {
+      ctx.moveTo(0, 0.5 + y);
+      ctx.lineTo(bw, 0.5 + y);
+  }
+  ctx.strokeStyle = "grey";
+  ctx.stroke();
+  ctx.closePath();
+}
 
 function drawFrame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -79,91 +79,91 @@ function drawFrame() {
   }
 }
 
-// function updateTick() {
-//   const dx = [0, 0, -1, 1];
-//   const dy = [-1, 1, 0, 0];
-//   var lastDirection = snake_direction;
-//   var newField = void 0;
-//
-//   for(var i = 0; i<snake_fields.length; i++) {
-//     var field = snake_fields[i];
-//
-//     if(field[2] != lastDirection) {
-//       field[2] = [lastDirection, lastDirection = field[2]][0];
-//     }
-//
-//     var x = field[0] + dx[field[2]];
-//     var y = field[1] + dy[field[2]];
-//
-//     if(x == apple_x && y == apple_y) {
-//       newField = Object.assign([], snake_fields[snake_fields.length-1]);
-//       spawnNewApple();
-//       score++;
-//     }
-//
-//     let collisionCounter = 0;
-//     for(var ci = 0;ci<snake_fields.length;ci++) {
-//       var collisionTestField = snake_fields[ci];
-//       if((collisionTestField[0] === field[0]) && (collisionTestField[1] === field[1])) {
-//         collisionCounter++;
-//       }
-//     }
-//
-//     if(x < 0 || x >= hFieldCount || y < 0 || y >= vFieldCount || collisionCounter >= 2) {
-//       // game over
-//       document.location.reload();
-//     }
-//
-//     snake_fields[i] = [x, y, field[2]];
-//   }
-//
-//   if(newField) {
-//     snake_fields.push(newField);
-//   }
-// }
+function updateTick() {
+  const dx = [0, 0, -1, 1];
+  const dy = [-1, 1, 0, 0];
+  var lastDirection = snake_direction;
+  var newField = void 0;
+
+  for(var i = 0; i<snake_fields.length; ++i) {
+    var field = snake_fields[i];
+
+    if(field[2] != lastDirection) {
+      field[2] = [lastDirection, lastDirection = field[2]][0];
+    }
+
+    var x = field[0] + dx[field[2]];
+    var y = field[1] + dy[field[2]];
+
+    if(x == apple_x && y == apple_y) {
+      newField = Object.assign([], snake_fields[snake_fields.length-1]);
+      spawnNewApple();
+      ++score;
+    }
+
+    let collisionCounter = 0;
+    for(var ci = 0; ci<snake_fields.length; ++ci) {
+      var collisionTestField = snake_fields[ci];
+      if((collisionTestField[0] === field[0]) && (collisionTestField[1] === field[1])) {
+        ++collisionCounter;
+      }
+    }
+
+    if(x < 0 || x >= hFieldCount || y < 0 || y >= vFieldCount || collisionCounter >= 2) {
+      // game over
+      document.location.reload();
+    }
+
+    snake_fields[i] = [x, y, field[2]];
+  }
+
+  if(newField) {
+    snake_fields.push(newField);
+  }
+}
 
 function startOrContinue() {
   updater = setInterval(updateTick, updateSpeed);
   drawFrame();
 }
 
-// function toggleUpdateLoop() {
-//   if(updater) {
-//     clearInterval(updater);
-//     updater = void 0;
-//   } else {
-//     startOrContinue();
-//   }
-// }
+function toggleUpdateLoop() {
+  if(updater) {
+    clearInterval(updater);
+    updater = void 0;
+  } else {
+    startOrContinue();
+  }
+}
 
-// function eventHandler(event) {
-//   var maybe_current_dir, new_dir;
-//
-//   if(event.key == "ArrowLeft") {
-//     new_dir = DIRECTION_LEFT;
-//     maybe_current_dir = DIRECTION_RIGHT;
-//   } else if(event.key == "ArrowRight") {
-//     new_dir = DIRECTION_RIGHT;
-//     maybe_current_dir = DIRECTION_LEFT;
-//   } else if(event.key == "ArrowUp") {
-//     new_dir = DIRECTION_UP;
-//     maybe_current_dir = DIRECTION_DOWN;
-//   } else if(event.key == "ArrowDown") {
-//     new_dir = DIRECTION_DOWN;
-//     maybe_current_dir = DIRECTION_UP;
-//   }
-//
-//   if((maybe_current_dir !== void 0) && (maybe_current_dir != snake_direction)) {
-//     snake_direction = new_dir;
-//   } else if(event.key == " ") {
-//     toggleUpdateLoop();
-//   } else if(event.key == "+") {
-//     updateSpeed = max(updateSpeed-10, 20);
-//     toggleUpdateLoop();
-//     toggleUpdateLoop();
-//   }
-// }
-//
-// document.addEventListener("keydown", eventHandler, false);
-//
-// startOrContinue();
+function eventHandler(event) {
+  var maybe_current_dir, new_dir;
+
+  if(event.key == "ArrowLeft") {
+    new_dir = DIRECTION_LEFT;
+    maybe_current_dir = DIRECTION_RIGHT;
+  } else if(event.key == "ArrowRight") {
+    new_dir = DIRECTION_RIGHT;
+    maybe_current_dir = DIRECTION_LEFT;
+  } else if(event.key == "ArrowUp") {
+    new_dir = DIRECTION_UP;
+    maybe_current_dir = DIRECTION_DOWN;
+  } else if(event.key == "ArrowDown") {
+    new_dir = DIRECTION_DOWN;
+    maybe_current_dir = DIRECTION_UP;
+  }
+
+  if((maybe_current_dir !== void 0) && (maybe_current_dir != snake_direction)) {
+    snake_direction = new_dir;
+  } else if(event.key == " ") {
+    toggleUpdateLoop();
+  } else if(event.key == "+") {
+    updateSpeed = max(updateSpeed-10, 20);
+    toggleUpdateLoop();
+    toggleUpdateLoop();
+  }
+}
+
+document.addEventListener("keydown", eventHandler, false);
+
+startOrContinue();

@@ -254,13 +254,19 @@ impl Operand {
         }
     }
 
-    pub fn from_literal(lit: Literal) -> Result<Self, CompilerError> {
-        match lit {
-            Literal::Null => Ok(Operand::Reg(253)), //TODO: Register of predefined void 0,
-            Literal::String(string) => Ok(Operand::String(string)),
-            Literal::Number(num) => Ok(Operand::ShortNum(num.parse().unwrap())), //TODO
-            Literal::Boolean(bool) => Ok(Operand::ShortNum(bool as u8)),
-            Literal::RegEx(_) | Literal::Template(_) => Err(CompilerError::Custom("regex and template literals are not supported".into()))
+    pub fn from_literal(literal: BytecodeLiteral) -> Result<Self, CompilerError> {
+        match literal {
+            BytecodeLiteral::Null => Ok(Operand::Reg(253)), //TODO: Register of predefined void 0,
+            BytecodeLiteral::String(string) => Ok(Operand::String(string)),
+            BytecodeLiteral::FloatNum(float) => Ok(Operand::FloatNum(float)),
+            BytecodeLiteral::IntNumber(int) => {
+                if int <= 255 && int >= 0 {
+                    Ok(Operand::ShortNum(int as u8))
+                } else {
+                    Ok(Operand::LongNum(int))
+                }
+            },
+            BytecodeLiteral::Bool(bool) => Ok(Operand::ShortNum(bool as u8)),
         }
     }
 
