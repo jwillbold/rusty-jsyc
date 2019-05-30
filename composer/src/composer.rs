@@ -24,11 +24,7 @@ impl VM {
     pub fn add_decl(reg: Register, ident: String) {
 
     }
-
-    pub fn add_instr(op_code: u8, function: String) {
-
-    }
-
+    
     pub fn save_to_file<P>(self, filepath: P) -> CompositionResult<()>
         where P: AsRef<std::path::Path>
     {

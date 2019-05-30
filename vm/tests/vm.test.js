@@ -1,11 +1,12 @@
 require("./test_helper.js")();
 require("../vm.js")();
+// var btoa = require('btoa');
 
 ///! HELPERS
 
 function encodeBytecode(nonEncodedBytecode)
 {
-  return nonEncodedBytecode;
+  return Buffer.from(nonEncodedBytecode).toString('base64')
 }
 
 function encodeString(string)

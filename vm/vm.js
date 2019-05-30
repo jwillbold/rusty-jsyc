@@ -7,6 +7,9 @@ if(window.document === void 0) {
 if(window.String === void 0) {
   window.String = String;
 }
+if(window.atob === void 0) {
+  window.atob = require('atob');
+}
 
 
 const REGS = {
@@ -216,16 +219,29 @@ class VM {
 
   init(bytecode) {
     this.stack = this._decodeBytecode(bytecode);
-    this.regs[REGS.STACK_PTR] = 0;
-    this.regs[REGS.RETURN_VAL] = 0;
-    this.regs[REGS.WINDOW] = window;
-    // this.regs[REGS.DOCUMENT] = window.document;
-    this.regs[REGS.VOID] = void 0;
-    this.regs[REGS.EMPTY_OBJ] = {};
+    this.setReg(REGS.STACK_PTR, 0);
+    this.setReg(REGS.RETURN_VAL, 0);
+
+    this.setReg(REGS.WINDOW, window);
+
+    this.setReg(REGS.VOID, void 0);
+    this.setReg(REGS.EMPTY_OBJ, {});
   }
 
   _decodeBytecode(encodedBytecode) {
-    return encodedBytecode;
+    var bytecode = window.atob(encodedBytecode);
+    var bytes = [];
+    var byteCounter = 0;
+    for (var i = 0; i < bytecode.length; i++){
+      var b = bytecode.charCodeAt(i);
+      if (b > 255) {
+        bytes[byteCounter++] = b & 255;
+        b >>= 8;
+      }
+      bytes[byteCounter++] = b;
+    }
+
+    return bytes;
   }
 
   _loadString() {
