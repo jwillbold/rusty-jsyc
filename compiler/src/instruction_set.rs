@@ -1,5 +1,5 @@
 use crate::bytecode::*;
-use crate::scope::{Reg, Scope, Scopes};
+use crate::scope::{Reg, Register, Scope, Scopes};
 use crate::error::{CompilerError, CompilerResult};
 
 pub use resast::prelude::*;
@@ -94,7 +94,7 @@ impl CommonLiteral {
 #[derive(Clone)]
 pub struct CommonLiteralRegs
 {
-    regs: Vec<Reg>
+    regs: Vec<Register>
 }
 
 impl CommonLiteralRegs {
@@ -117,16 +117,49 @@ impl CommonLiteralRegs {
     }
 }
 
+
+make_enum_helper!(
+enum MultipurposeRegister {
+    BytecodePointer,
+    RegistersBackup
+});
+
+#[derive(Clone)]
+pub struct MultipurposeRegisters {
+    regs: Vec<Register>
+}
+
+impl MultipurposeRegisters {
+    pub fn new(scope: &mut Scope) -> CompilerResult<Self> {
+        Ok(MultipurposeRegisters {
+            regs: MultipurposeRegister::enum_iterator().map(|mp_reg| {
+                match mp_reg {
+                    MultipurposeRegister::BytecodePointer => scope.try_reserve_specific_reg(200),
+                    MultipurposeRegister::RegistersBackup => scope.try_reserve_specific_reg(201),
+                    MultipurposeRegister::__VarinatsCountHelper__ => panic!("MultipurposeRegister::__VarinatsCountHelper__")
+                }
+            }).collect::<CompilerResult<Vec<Register>>>()?
+        })
+    }
+
+    pub fn reg(&self, mp_reg: &MultipurposeRegister) -> Reg {
+        self.regs[mp_reg.variant_index()]
+    }
+}
+
+
 #[derive(Clone)]
 pub struct InstructionSet
 {
-    common_regs: CommonLiteralRegs
+    common_regs: CommonLiteralRegs,
+    multipurpose_regs: MultipurposeRegisters,
 }
 
 impl InstructionSet {
     pub fn default(scope: &mut Scope) -> Self {
         InstructionSet {
-            common_regs: CommonLiteralRegs::new(scope).unwrap()
+            common_regs: CommonLiteralRegs::new(scope).unwrap(),
+            multipurpose_regs: MultipurposeRegisters::new(scope).unwrap()
         }
     }
 

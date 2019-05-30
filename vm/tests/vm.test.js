@@ -68,7 +68,7 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_NUM, 150, 3, // LOAD NUM 3 INTO REGISTER 100
       OP.LOAD_NUM, 151, 2, // LOAD NUM 2 INTO REGISTER 101
-      OP.MUL, 150, 151,    // MULTIPLY NUM IN REG 100 WITH NUM IN REG 101
+      OP.MUL, 150, 150, 151,    // MULTIPLY NUM IN REG 100 WITH NUM IN REG 101
     ],
     expected_registers: [
       [150, 6]
@@ -124,13 +124,13 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_NUM, 150, 60,
       OP.LOAD_NUM, 151, 6,
-      OP.CALL_BCFUNC, 12, // 12 is the offset of the bytecode below
-      OP.ADD, REGS.BCFUNC_RETURN, 150,
+      OP.CALL_BCFUNC, 13, // 12 is the offset of the bytecode below
+      OP.ADD, REGS.BCFUNC_RETURN, REGS.BCFUNC_RETURN, 150,
       OP.EXIT,
 
       // The function: function(a ,b) { return (a+b)*2; }
-      OP.ADD, 150, 151,
-      OP.MUL, 150, 150,
+      OP.ADD, 150, 150, 151,
+      OP.MUL, 150, 150, 150,
       OP.COPY, REGS.BCFUNC_RETURN, 150,
       OP.RETURN_BCFUNC,
     ],

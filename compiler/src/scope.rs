@@ -67,6 +67,16 @@ impl Scope {
         )
     }
 
+    pub fn try_reserve_specific_reg(&mut self, specific_reg: Register) -> CompilerResult<Register> {
+        match self.unused_register.iter().enumerate().find(|(i, &reg)| reg == specific_reg) {
+            Some((i, reg)) => {
+                self.unused_register.remove(i);
+                Ok(*reg)
+            },
+            None => Err(CompilerError::Custom(format!("Failed to reserve specific reg {}", specific_reg)))
+        }
+    }
+
     pub fn add_decl(&mut self, decl: String, decl_type: DeclarationType) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
         self.decls.insert(decl, Declaration {

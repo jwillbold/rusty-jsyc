@@ -10,18 +10,18 @@ if(window.String === void 0) {
 
 
 const REGS = {
-  // Internal helpers
-  STACK_PTR: 1,
-  RETURN_VAL: 2,
-  REG_BACKUP: 3,
-  BCFUNC_RETURN: 4,
-
-  // Global context data
+  // External dependencies
   WINDOW: 100,
-  DOCUMENT: 101,
+  // DOCUMENT: 101,
 
-  // Misc
-  EMPTY_OBJ: 201,
+  // Reserved registers
+  STACK_PTR: 200,
+  REG_BACKUP: 201,
+  RETURN_VAL: 202,
+  BCFUNC_RETURN: 203,
+
+  // Common literals
+  EMPTY_OBJ: 252,
   VOID: 253,
   NUM_1: 254,
   NUM_0: 255,
@@ -47,14 +47,14 @@ const OP = {
   JUMP: 18,
   JUMP_COND_NEG: 19,
 
-  // Instruction::CompEqual => 50,
-  // Instruction::CompNotEqual => 51,
-  // Instruction::CompStrictEqual => 52,
-  // Instruction::CompStrictNotEqual => 53,
-  // Instruction::CompLessThan => 54,
-  // Instruction::CompGreaterThan => 55,
-  // Instruction::CompLessThanEqual => 56,
-  // Instruction::CompGreaterThanEqual => 57,
+  // CompEqual: 50,
+  // CompNotEqual: 51,
+  // CompStrictEqual: 52,
+  // CompStrictNotEqual: 53,
+  // CompLessThan: 54,
+  // CompGreaterThan: 55,
+  // CompLessThanEqual: 56,
+  // CompGreaterThanEqual: 57,
 
   // Math
   ADD: 100,
@@ -171,24 +171,24 @@ class VM {
     }
 
     this.ops[OP.ADD] = function(vm) {
-      var dst = vm.getByte(), src = vm.getByte();
-      vm.setReg(dst, vm.regs[dst] + vm.regs[src]);
+      var dst = vm.getByte(), src0 = vm.getByte(), src1 = vm.getByte();
+      vm.setReg(dst, vm.regs[src0] + vm.regs[src1]);
     }
 
     this.ops[OP.MUL] = function(vm) {
-      var dst = vm.getByte(), src = vm.getByte();
-      vm.setReg(dst, vm.regs[dst] * vm.regs[src]);
+      var dst = vm.getByte(), src0 = vm.getByte(), src1 = vm.getByte();
+      vm.setReg(dst, vm.regs[src0] * vm.regs[src1]);
     }
 
-    // this.ops[OP.MINUS] = function(vm) {
-    //   var dst = vm.getByte(), src = vm.getByte();
-    //   vm.setReg(dst, vm.regs[dst] - vm.regs[src]);
-    // }
+    this.ops[OP.MINUS] = function(vm) {
+      var dst = vm.getByte(), src0 = vm.getByte(), src1 = vm.getByte();
+      vm.setReg(dst, vm.regs[src0] - vm.regs[src1]);
+    }
 
-    // this.ops[OP.DIV] = function(vm) {
-    //   var dst = vm.getByte(), src = vm.getByte();
-    //   vm.setReg(dst, vm.regs[dst] / vm.regs[src]);
-    // }
+    this.ops[OP.DIV] = function(vm) {
+      var dst = vm.getByte(), src0 = vm.getByte(), src1 = vm.getByte();
+      vm.setReg(dst, vm.regs[src0] / vm.regs[src1]);
+    }
 
   }
 
@@ -219,7 +219,7 @@ class VM {
     this.regs[REGS.STACK_PTR] = 0;
     this.regs[REGS.RETURN_VAL] = 0;
     this.regs[REGS.WINDOW] = window;
-    this.regs[REGS.DOCUMENT] = window.document;
+    // this.regs[REGS.DOCUMENT] = window.document;
     this.regs[REGS.VOID] = void 0;
     this.regs[REGS.EMPTY_OBJ] = {};
   }
