@@ -4,7 +4,7 @@
   "private": true,
   "author": "Johannes Willbold",
   "scripts": {
-    "test": "_mocha --recursive ./code/tests/*.test.js"
+    "test": "_mocha --recursive ./vm/tests/*.test.js"
   },
   "dependencies": {
     "mocha": "~6.1.2",

@@ -21,14 +21,19 @@ const REGS = {
   DOCUMENT: 101,
 
   // Misc
-  VOID: 200,
-  EMPTY_OBJ: 201
+  EMPTY_OBJ: 201,
+  VOID: 253,
+  NUM_1: 254,
+  NUM_0: 255,
 };
 
 const OP = {
   // Loaders
   LOAD_STRING: 1,
   LOAD_NUM: 2,
+  LOAD_FLOAT: 3,
+  LOAD_LONG_NUM: 4,
+  LOAD_ARRAY: 5,
 
   // Misc
   PROPACCESS: 10,
@@ -39,10 +44,23 @@ const OP = {
   COPY: 15,
   EXIT: 16,
   COND_JUMP: 17,
+  JUMP: 18,
+  JUMP_COND_NEG: 19,
+
+  // Instruction::CompEqual => 50,
+  // Instruction::CompNotEqual => 51,
+  // Instruction::CompStrictEqual => 52,
+  // Instruction::CompStrictNotEqual => 53,
+  // Instruction::CompLessThan => 54,
+  // Instruction::CompGreaterThan => 55,
+  // Instruction::CompLessThanEqual => 56,
+  // Instruction::CompGreaterThanEqual => 57,
 
   // Math
   ADD: 100,
   MUL: 101,
+  MINUS: 102,
+  DIV: 103
 };
 
 class VM {
@@ -51,23 +69,37 @@ class VM {
     this.stack = [];
     this.ops = [];
 
-    this.ops[OP.PROPACCESS] = function(vm) {
-      var dst = vm.getByte(), obj = vm.getByte(), prop = vm.getByte();
-      obj = vm.getReg(obj); prop = vm.getReg(prop);
-
-      vm.setReg(dst, obj[prop]);
-    };
-
     this.ops[OP.LOAD_STRING] = function(vm) {
       var dst = vm.getByte(), str = vm._loadString();
-
       vm.setReg(dst, str);
     };
 
     this.ops[OP.LOAD_NUM] = function(vm) {
       var dst = vm.getByte(), val = vm.getByte();
       vm.setReg(dst, val);
-    }
+    };
+
+    this.ops[OP.LOAD_FLOAT] = function(vm) {
+      var dst = vm.getByte(), val = vm._loadFloat();
+      vm.setReg(dst, val);
+    };
+
+    this.ops[OP.LOAD_LONG_NUM] = function(vm) {
+      var dst = vm.getByte(), val = vm._loadLongNum();
+      vm.setReg(dst, val);
+    };
+
+    this.ops[OP.LOAD_ARRAY] = function(vm) {
+      var dst = vm.getByte(), array = vm._loadArray();
+      vm.setReg(dst, array);
+    };
+
+    this.ops[OP.PROPACCESS] = function(vm) {
+      var dst = vm.getByte(), obj = vm.getByte(), prop = vm.getByte();
+      obj = vm.getReg(obj); prop = vm.getReg(prop);
+
+      vm.setReg(dst, obj[prop]);
+    };
 
     this.ops[OP.FUNC_CALL] = function(vm) {
       var dst = vm.getByte(), func = vm.getByte(), funcThis = vm.getByte(),
@@ -119,7 +151,22 @@ class VM {
       jump = vm.getReg(jump);
 
       if(cond) {
-        vm.setReg(REGS.STACK_PTR, vm.getReg(REGS.STACK_PTR)+jump);
+        vm.setReg(REGS.STACK_PTR, jump);
+      }
+    }
+
+    this.ops[OP.JUMP] = function(vm) {
+      var jump = vm.getReg(vm.getByte());
+      vm.setReg(REGS.STACK_PTR, jump);
+    }
+
+    this.ops[OP.JUMP_COND_NEG] = function(vm) {
+      var cond = vm.getByte(), jump = vm.getByte();
+      cond = vm.getReg(cond);
+      jump = vm.getReg(jump);
+
+      if(!cond) {
+        vm.setReg(REGS.STACK_PTR, jump);
       }
     }
 
@@ -132,6 +179,17 @@ class VM {
       var dst = vm.getByte(), src = vm.getByte();
       vm.setReg(dst, vm.regs[dst] * vm.regs[src]);
     }
+
+    // this.ops[OP.MINUS] = function(vm) {
+    //   var dst = vm.getByte(), src = vm.getByte();
+    //   vm.setReg(dst, vm.regs[dst] - vm.regs[src]);
+    // }
+
+    // this.ops[OP.DIV] = function(vm) {
+    //   var dst = vm.getByte(), src = vm.getByte();
+    //   vm.setReg(dst, vm.regs[dst] / vm.regs[src]);
+    // }
+
   }
 
   setReg(reg, value) {
@@ -194,6 +252,50 @@ class VM {
     }
 
     return array;
+  }
+
+  _loadFloat() {
+    var num_str = "";
+    for(let i = 0; i<8; i++) {
+      let x = this.getByte();
+      num_str += x < 0x10 ? '0'+ x.toString(16) : x.toString(16);
+    }
+
+    var binary = parseInt(num_str, 16).toString(2);
+    binary = '0'*(64-binary.length) + binary;
+
+    var sign = (binary.charAt(0) == '1')? -1 : 1;
+    var exponent = parseInt(binary.substr(1, 11), 2) - 0x3ff;
+    var significandBase = binary.substr(12);
+    var significandBin = '1' + significandBase;
+
+    if (exponent == -0x3ff) {
+        if (significandBase.indexOf('1') == -1) {
+            return 0;
+        } else {
+            exponent = -0x3fe;
+            significandBin = '0'+significandBase;
+        }
+    }
+
+    var i = 0;
+    var val = 1;
+    var significand = 0;
+    while (i < significandBin.length) {
+        significand += val * parseInt(significandBin.charAt(i));
+        val = val / 2;
+        i++;
+    }
+
+    return sign * significand * Math.pow(2, exponent);
+  }
+
+  _loadLongNum() {
+    // TODO
+  }
+
+  _loadArray() {
+    // TODO
   }
 }
 

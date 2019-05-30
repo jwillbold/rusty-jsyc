@@ -37,12 +37,30 @@ const testDataSet = [
     expected_registers: [],
   },
   {
-    name: "Set return value 66",
+    name: "Load short num",
     bytecode: [
       OP.LOAD_NUM, 150 , 66, // LOAD NUM 66 INTO REGISTER 150
     ],
     expected_registers: [
       [150, 66]
+    ],
+  },
+  {
+    name: "Load float",
+    bytecode: [
+      OP.LOAD_FLOAT, 150, ...[0x40, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    ],
+    expected_registers: [
+      [150, 12.5]
+    ],
+  },
+  {
+    name: "Load string",
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("Hello World")
+    ],
+    expected_registers: [
+      [150, "Hello World"]
     ],
   },
   {
@@ -54,15 +72,6 @@ const testDataSet = [
     ],
     expected_registers: [
       [150, 6]
-    ],
-  },
-  {
-    name: "Load string",
-    bytecode: [
-      OP.LOAD_STRING, 150, ...encodeString("Hello World")
-    ],
-    expected_registers: [
-      [150, "Hello World"]
     ],
   },
   {
@@ -115,7 +124,7 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_NUM, 150, 60,
       OP.LOAD_NUM, 151, 6,
-      OP.CALL_BCFUNC, 12, // 15 is the offset of the bytecode below
+      OP.CALL_BCFUNC, 12, // 12 is the offset of the bytecode below
       OP.ADD, REGS.BCFUNC_RETURN, 150,
       OP.EXIT,
 
@@ -174,4 +183,3 @@ describe("VM Tests", function() {
     }
   });
 });
-

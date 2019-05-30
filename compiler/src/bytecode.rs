@@ -83,9 +83,6 @@ impl Instruction {
             Instruction::Jump => 18,
             Instruction::JumpCondNeg => 19,
 
-            Instruction::LogicAnd => 30,
-            Instruction::LogicOr => 31,
-
             Instruction::CompEqual => 50,
             Instruction::CompNotEqual => 51,
             Instruction::CompStrictEqual => 52,
@@ -99,6 +96,41 @@ impl Instruction {
             Instruction::Minus => 102,
             Instruction::Mul => 101,
             Instruction::Div => 103,
+        }
+    }
+
+    pub fn to_str(&self) -> &str {
+        match self {
+            Instruction::LoadString => "LoadString",
+            Instruction::LoadNum => "LoadNum",
+            Instruction::LoadFloatNum => "LoadFloatNum",
+            Instruction::LoadLongNum => "LoadLongNum",
+            Instruction::LoadArray => "LoadArray",
+
+            Instruction::PropAccess => "PropAccess",
+            Instruction::CallFunc => "CallFunc",
+            Instruction::Eval => "Eval",
+            Instruction::CallBytecodeFunc => "CallBytecodeFunc",
+            Instruction::ReturnBytecodeFunc => "ReturnBytecodeFunc",
+            Instruction::Copy => "Copy",
+            Instruction::Exit => "Exit",
+            Instruction::JumpCond => "JumpCond",
+            Instruction::Jump => "Jump",
+            Instruction::JumpCondNeg => "JumpCondNeg",
+
+            Instruction::CompEqual => "CompEqual",
+            Instruction::CompNotEqual => "CompNotEqual",
+            Instruction::CompStrictEqual => "CompStrictEqual",
+            Instruction::CompStrictNotEqual => "CompStrictNotEqual",
+            Instruction::CompLessThan => "CompLessThan",
+            Instruction::CompGreaterThan => "CompGreaterThan",
+            Instruction::CompLessThanEqual => "CompLessThanEqual",
+            Instruction::CompGreaterThanEqual => "CompGreaterThanEqual",
+
+            Instruction::Add => "Add",
+            Instruction::Minus => "Minus",
+            Instruction::Mul => "Mul",
+            Instruction::Div => "Div",
         }
     }
 }
@@ -330,6 +362,22 @@ impl Operand {
     }
 }
 
+impl std::fmt::Display for Operand {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Operand::String(string) => write!(f, "String({})", string),
+            Operand::FloatNum(float) => write!(f, "Float({})", float),
+            Operand::LongNum(long_num) => write!(f, "LongNum({})", long_num),
+            Operand::ShortNum(short_num) => write!(f, "ShortNum({})", short_num),
+            Operand::Reg(reg) => write!(f, "Reg({})", reg),
+            Operand::RegistersArray(reg_array) => write!(f, "RegArray({:?})", reg_array),
+
+            Operand::FunctionAddr(bc_addr_token) => write!(f, "FunctionAddr({:?})", bc_addr_token),
+            Operand::BranchAddr(label_addr_token) => write!(f, "BranchAddr({:?})", label_addr_token),
+        }
+    }
+}
+
 #[test]
 fn test_encode_string() {
     assert_eq!(Operand::String("Hello World".into()).to_bytes(),
@@ -378,6 +426,16 @@ impl Command {
     }
 }
 
+impl std::fmt::Display for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.instruction.to_str())?;
+        for operand in self.operands.iter() {
+            write!(f, " {}", operand)?;
+        }
+        Ok(())
+    }
+}
+
 impl ToBytes for Command {
     fn to_bytes(&self) -> Vec<u8> {
         let mut line = vec![self.instruction.to_byte()];
@@ -418,19 +476,31 @@ impl ToBytes for BytecodeElement {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Bytecode
-{
+pub struct Bytecode {
     pub elements: Vec<BytecodeElement>,
 }
 
 impl std::fmt::Display for Bytecode {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "TO{0}", "DO")
+        for element in self.elements.iter() {
+            match element {
+                BytecodeElement::Label(label) => { write!(f, "\nlabel_{}:\n", label)?; }
+                BytecodeElement::Command(cmd) => {
+
+                    write!(f, "{}\n", cmd)?;
+
+                    if Instruction::ReturnBytecodeFunc == cmd.instruction {
+                        write!(f, "\n\n")?;
+                    }
+
+                }
+            }
+        }
+        Ok(())
     }
 }
 
 impl Bytecode {
-
     pub fn new() -> Self {
         Bytecode {
             elements: vec![]

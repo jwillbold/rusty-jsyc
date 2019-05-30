@@ -66,6 +66,8 @@ fn main() -> CompositionResult<()> {
     let bytecode = load_and_compile_js_code(code_path)?;
     let vm = load_vm_template(vm_path)?;
 
+    println!("bytecode:\n{}", &bytecode);
+
     println!("Starting to compose VM and bytecode...");
     let composer = Composer::new(vm, bytecode);
 
