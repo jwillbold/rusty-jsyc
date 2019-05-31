@@ -26,7 +26,7 @@ function encodeRegistersArray(array)
   const arrayLength = array.length;
 
   var encodedArray = array.slice();
-  encodedArray.unshift(arrayLength & 0xff00, arrayLength & 0xff);
+  encodedArray.unshift(arrayLength & 0xff);
 
   return encodedArray;
 }
@@ -62,6 +62,39 @@ const testDataSet = [
     ],
     expected_registers: [
       [150, "Hello World"]
+    ],
+  },
+  {
+    name: "Load array",
+    bytecode: [
+      OP.LOAD_STRING, 150, ...encodeString("Hello World"),
+      OP.LOAD_NUM, 151, 120,
+      OP.LOAD_FLOAT, 152, ...[0x40, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+      OP.LOAD_ARRAY, 153, ...encodeRegistersArray([150, 151, 152])
+    ],
+    expected_registers: [
+      [150, "Hello World"],
+      [151, 120],
+      [152, 12.5],
+      [153, ["Hello World", 120, 12.5]]
+    ],
+  },
+  {
+    name: "Load long num positiv",
+    bytecode: [
+      OP.LOAD_LONG_NUM, 150, 0x0f, 0x00, 0xff, 0x1f
+    ],
+    expected_registers: [
+      [150, 0x0f00ff1f],
+    ],
+  },
+  {
+    name: "Load long num negative",
+    bytecode: [
+      OP.LOAD_LONG_NUM, 150, 0xff, 0x00, 0xff, 0x1f
+    ],
+    expected_registers: [
+      [150, -0x00ff00e1],
     ],
   },
   {
@@ -125,20 +158,21 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_NUM, 150, 60,
       OP.LOAD_NUM, 151, 6,
-      OP.CALL_BCFUNC, 13, // 12 is the offset of the bytecode below
-      OP.ADD, REGS.BCFUNC_RETURN, REGS.BCFUNC_RETURN, 150,
+      OP.CALL_BCFUNC, 19, 160, 4, 150, 152, 151, 153, // 13 is the offset of the bytecode below
+      OP.ADD, 160, 160, 150,
       OP.EXIT,
 
-      // The function: function(a ,b) { return (a+b)*2; }
-      OP.ADD, 150, 150, 151,
-      OP.MUL, 150, 150, 150,
-      OP.COPY, REGS.BCFUNC_RETURN, 150,
-      OP.RETURN_BCFUNC,
+      // The function: function(a, b) { return (a+b)^2; }
+      // a: 152
+      // b: 153
+      OP.ADD, 152, 152, 153,
+      OP.MUL, 152, 152, 152,
+      OP.RETURN_BCFUNC, 152
     ],
     expected_registers: [
-      [REGS.BCFUNC_RETURN, 4416],
       [150, 60],
       [151, 6],
+      [160, 4416]
     ]
   },
   {
@@ -168,7 +202,7 @@ function runVMTests(testData) {
   assert.equal(result, 0);
 
   for(let regData of testData.expected_registers) {
-    assert.equal(vm.getReg(regData[0]), regData[1],
+    assert.deepEqual(vm.getReg(regData[0]), regData[1],
                 "Expected register " + regData[0] +  " to be " + regData[1] +
                 " but it is " + vm.getReg(regData[0]));
   }

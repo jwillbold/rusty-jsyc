@@ -71,6 +71,7 @@ class VM {
     this.regs =  [];
     this.stack = [];
     this.ops = [];
+    this.reg_backups = [];
 
     this.ops[OP.LOAD_STRING] = function(vm) {
       var dst = vm.getByte(), str = vm._loadString();
@@ -93,7 +94,7 @@ class VM {
     };
 
     this.ops[OP.LOAD_ARRAY] = function(vm) {
-      var dst = vm.getByte(), array = vm._loadArray();
+      var dst = vm.getByte(), array = vm._loadArrayFromRegister();
       vm.setReg(dst, array);
     };
 
@@ -122,25 +123,30 @@ class VM {
 
     this.ops[OP.CALL_BCFUNC] = function(vm) {
       var funcOffset = vm.getByte();
+      var returnReg = vm.getByte();
+      var argsArray = vm._loadRegistersArray();
+      vm.reg_backups.push([vm.regs.slice(), returnReg]);
 
-      vm.setReg(REGS.REG_BACKUP, vm.regs.slice());
+      for(let i = 0; i <= argsArray.length/2; i+=2) {
+        vm.setReg(argsArray[i+1], vm.getReg(argsArray[i]));
+      }
+
       vm.setReg(REGS.STACK_PTR, funcOffset);
     }
 
     this.ops[OP.RETURN_BCFUNC] = function(vm) {
-      var exceptions = [REGS.BCFUNC_RETURN];
-      var regBackups = vm.getReg(REGS.REG_BACKUP);
+      var returnFromReg = vm.getByte();
+      var returnData = vm.reg_backups.pop();
+      var regBackups = returnData[0];
+      let returnToReg = returnData[1];
 
-      for(let exception of exceptions) {
-        regBackups[exception] = vm.getReg(exception);
-      }
+      regBackups[returnToReg] = vm.getReg(returnFromReg);
 
       vm.regs = regBackups;
     }
 
     this.ops[OP.COPY] = function(vm) {
       var dst = vm.getByte(), src = vm.getByte();
-
       vm.setReg(dst, vm.getReg(src));
     }
 
@@ -260,7 +266,7 @@ class VM {
   }
 
   _loadArrayFromRegister() {
-    var arrayLength = (this.getByte() << 8) || this.getByte();
+    var arrayLength = this.getByte();
     var array = [];
 
     for(var i = 0;i<arrayLength;i++) {
@@ -307,11 +313,20 @@ class VM {
   }
 
   _loadLongNum() {
-    // TODO
+    var num = this.getByte() << 24 | this.getByte() << 16 |
+              this.getByte() << 8 | this.getByte();
+    return num;
   }
 
-  _loadArray() {
-    // TODO
+  _loadRegistersArray() {
+    var arrayLength = this.getByte();
+    var registers_array = [];
+
+    for(var i = 0;i<arrayLength;i++) {
+      registers_array.push(this.getByte());
+    }
+
+    return registers_array;
   }
 }
 
