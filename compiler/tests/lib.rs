@@ -20,8 +20,8 @@ fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: compil
 
     assert_eq!(compiler.compile(&js_source).unwrap(), expected_bc);
 
-    for (decl_dep, expected_decl_dep) in compiler.decl_dependencies().iter().zip(expected_decl_deps) {
-        assert_eq!(&decl_dep.ident.as_str(), expected_decl_dep);
+    for (decl_dep, expected_decl_dep) in compiler.decl_dependencies().decls_decps.keys().zip(expected_decl_deps) {
+        assert_eq!(&decl_dep.as_str(), expected_decl_dep);
     }
 }
 
@@ -143,6 +143,15 @@ fn test_bytecode_func_calls() {
         .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(16), Operand::Reg(1), Operand::RegistersArray(vec![1, 0])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(1)]))
+    );
+
+    run_test_deps("function testy(a) {return a;}; setInterval(testy, 60);", &["setInterval"], Bytecode::new()
+        .add(Command::new(Instruction::BytecodeFuncCallback, vec![Operand::Reg(1), Operand::LongNum(23), Operand::RegistersArray(vec![0])]))
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(2), Operand::ShortNum(60)]))
+        .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(0), Operand::Reg(0),
+                                                      Operand::Reg(253), Operand::RegistersArray(vec![1, 2])]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0)]))
     );
 }
 

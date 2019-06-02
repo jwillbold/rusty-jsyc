@@ -2,6 +2,7 @@ extern crate compiler;
 extern crate resw;
 extern crate resast;
 extern crate ressa;
+extern crate clap;
 
 mod composer;
 mod errors;
@@ -10,13 +11,11 @@ use std::io::Read;
 use std::env;
 use std::fs;
 use compiler::{Bytecode, JSSourceCode, BytecodeCompiler};
+use clap::{Arg, App};
+
 use errors::{CompositionResult};
 use composer::{Composer, VM};
 
-
-fn print_usage() {
-    println!("Usage: './composer /path/to/javascript.js /path/to/vm-template.js' /output/dir\n");
-}
 
 fn load_vm_template(path: &str) -> CompositionResult<VM> {
     let mut f = fs::File::open(path)?;
@@ -26,47 +25,85 @@ fn load_vm_template(path: &str) -> CompositionResult<VM> {
     VM::from_string(JSSourceCode::new(vm_code))
 }
 
-fn load_and_compile_js_code(path: &str) -> CompositionResult<Bytecode> {
+fn load_js_code(path: &str) -> CompositionResult<JSSourceCode> {
     let mut f = fs::File::open(path)?;
     let mut js_code = String::new();
     f.read_to_string(&mut js_code)?;
 
-    println!("Starting to compile bytecode...");
-
-    let mut compiler = BytecodeCompiler::new();
-    let bytecode = compiler.compile(&JSSourceCode::new(js_code))?;
-
-    println!("Finished bytecode compilation");
-
-    Ok(bytecode)
+    Ok(JSSourceCode::new(js_code))
 }
 
 fn main() -> CompositionResult<()> {
-    let args: Vec<String> = env::args().collect();
+    let matches = App::new("Rusty JSYC bytecode compiler")
+                    .version("1.0")
+                    .author("Johannes Willbold <johannes.willbold@rub.de>")
+                    .about("A tool to compile JavaScript code into bytecode to be use din virtualization obfuscation.")
+                    .arg(Arg::with_name("INPUT")
+                            .required(true)
+                            .value_name("/path/to/javascript.js"))
+                    .arg(Arg::with_name("VM")
+                            .value_name("/path/to/vm-template.js")
+                            .required(true))
+                    .arg(Arg::with_name("OUTPUT_DIR")
+                            .value_name("/output/dir")
+                            .required(true))
+                    .arg(Arg::with_name("s")
+                            .short("s")
+                            .long("show-bytecode"))
+                    .arg(Arg::with_name("d")
+                            .short("d")
+                            .long("show-depedencies"))
+                    .arg(Arg::with_name("v")
+                            .short("v")
+                            .long("verbose"))
+                    .get_matches();
 
-    if args.len() != 4 {
-        print_usage();
-        return Ok(())
+    let code_path =  matches.value_of("INPUT").unwrap();
+    let vm_path =  matches.value_of("VM").unwrap();
+    let output_dir = matches.value_of("OUTPUT_DIR").unwrap();
+
+    if matches.is_present("v") {
+        println!("Using input file: {}", code_path);
+        println!("Using vm template file: {}", vm_path);
+        println!("Using output dir: {}", output_dir);
     }
 
-    let code_path = &args[1];
-    let vm_path = &args[2];
-    let output_dir = std::path::Path::new(&args[3]);
+    let output_dir = std::path::Path::new(output_dir);
 
     if !output_dir.exists() {
         if let Some(paren_dir) = output_dir.parent() {
             if !paren_dir.exists() {
+                if matches.is_present("v") {
+                    println!("Creating output parent dir...");
+                }
                 fs::create_dir(paren_dir)?;
             }
         }
 
+        if matches.is_present("v") {
+            println!("Creating output dir...");
+        }
         fs::create_dir(output_dir)?;
     }
 
-    let bytecode = load_and_compile_js_code(code_path)?;
+    let js_code = load_js_code(code_path)?;
     let vm = load_vm_template(vm_path)?;
 
-    println!("bytecode:\n{}", &bytecode);
+
+    println!("Starting to compile bytecode...");
+
+    let mut compiler = BytecodeCompiler::new();
+    let bytecode = compiler.compile(&js_code)?;
+
+    println!("Finished bytecode compilation");
+
+    if matches.is_present("d") {
+        println!("Dependencies: {:?}", &compiler.decl_dependencies());
+    }
+
+    if matches.is_present("s") {
+        println!("Bytecode:\n{}", &bytecode);
+    }
 
     println!("Starting to compose VM and bytecode...");
     let composer = Composer::new(vm, bytecode);

@@ -49,17 +49,13 @@ const OP = {
   COND_JUMP: 17,
   JUMP: 18,
   JUMP_COND_NEG: 19,
+  BCFUNC_CALLBACK: 20,
 
+  // Comparisons
   COMP_EQUAL: 50,
   COM_NOT_EQUAL: 51,
-  // CompStrictEqual: 52,
-  // CompStrictNotEqual: 53,
-  // CompLessThan: 54,
-  // CompGreaterThan: 55,
   COMP_LESS_THAN: 54,
   COMP_GREATHER_THAN: 55,
-  // CompLessThanEqual: 56,
-  // CompGreaterThanEqual: 57,
   COMP_LESS_THAN_EQUAL: 56,
   COMP_GREATHER_THAN_EQUAL: 57,
 
@@ -183,6 +179,16 @@ class VM {
       }
     }
 
+    this.ops[OP.BCFUNC_CALLBACK] = function(vm) {
+      var dst = vm.getByte(), func_offset = vm._loadLongNum(), arg_regs = vm._loadRegistersArray();
+      vm.setReg(dst, function() {
+        for(let i = 0; i<arg_regs.length; ++i) {
+          vm.setReg(arg_regs[i], arguments[i]);
+        }
+        vm.runAt(func_offset)
+      });
+    }
+
     this.ops[OP.COMP_EQUAL] = function(vm) {
       var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
       left = vm.getReg(left);
@@ -273,6 +279,12 @@ class VM {
     }
 
     return this.regs[REGS.RETURN_VAL];
+  }
+
+  runAt(offset) {
+    this.reg_backups.push([this.regs.slice(), REGS.BCFUNC_RETURN]);
+    setReg(REGS.STACK_PTR, offset);
+    run();
   }
 
   init(bytecode) {

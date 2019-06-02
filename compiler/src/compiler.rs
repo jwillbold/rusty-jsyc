@@ -40,7 +40,7 @@ impl LabelGenerator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DeclDependency {
     pub ident: Identifier,
     pub reg: Register
@@ -52,14 +52,37 @@ impl DeclDependency {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DeclDepencies {
+    pub decls_decps: HashMap<Identifier, Register>
+}
+
+impl DeclDepencies {
+    pub fn new() -> Self {
+        DeclDepencies {
+            decls_decps: HashMap::new()
+        }
+    }
+
+    pub fn add_decl_dep(&mut self, ident: Identifier, reg: Register) {
+        self.decls_decps.insert(ident.to_string(), reg);
+    }
+
+    pub fn try_get_dep(&self, ident: &Identifier) -> Option<&Register> {
+        self.decls_decps.get(ident)
+    }
+}
+
 #[derive(Clone)]
 pub struct BytecodeCompiler
 {
     scopes: Scopes,
+    // This is not a hashmap but a vector only to make tetsing easier
+    // functions: HashMap<Identifier, BytecodeFunction>,
     functions: Vec<BytecodeFunction>,
     isa: InstructionSet,
     label_generator: LabelGenerator,
-    decl_dependencies: Vec<DeclDependency>
+    decl_dependencies: DeclDepencies
 }
 
 impl BytecodeCompiler {
@@ -71,10 +94,10 @@ impl BytecodeCompiler {
 
         BytecodeCompiler{
             scopes: scopes,
-            functions: Vec::new(),
+            functions: vec![],
             isa: isa,
             label_generator: LabelGenerator::new(),
-            decl_dependencies: Vec::new()
+            decl_dependencies: DeclDepencies::new()
         }
     }
 
@@ -82,7 +105,7 @@ impl BytecodeCompiler {
         self.scopes.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
     }
 
-    pub fn decl_dependencies(&self) -> &Vec<DeclDependency> {
+    pub fn decl_dependencies(&self) -> &DeclDepencies{
         &self.decl_dependencies
     }
 
@@ -97,7 +120,7 @@ impl BytecodeCompiler {
             },
         }?;
 
-        bytecode = self.finalize_label_addresses(bytecode)?;
+        bytecode = self.finalize_label_addresses(bytecode, 0)?;
 
         if self.functions.is_empty() {
             Ok(bytecode)
@@ -283,7 +306,7 @@ impl BytecodeCompiler {
         let opt_reg = match expr {
             Expr::Ident(ident) => match self.scopes.get_var(ident) {
                 Ok(var) => Some(var.register),
-                Err(_) => None
+                Err(_) => self.decl_dependencies.try_get_dep(ident).map(|&reg| reg)
             },
             Expr::Literal(lit) => {
                 match self.scopes.get_lit_decl(&BytecodeLiteral::from_lit(lit.clone())?) {
@@ -400,7 +423,7 @@ impl BytecodeCompiler {
     fn compile_call_expr(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
         match call.callee.borrow() {
             Expr::Ident(ident) => {
-                if self.functions.iter().any(|func| func.ident==*ident) {
+                if self.functions.iter().any(|func| func.ident == *ident) {
                     self.compile_bytecode_func_call(ident.to_string(), &call.arguments, target_reg)
                 } else {
                     self.compile_extern_func_call(call, target_reg)
@@ -471,12 +494,19 @@ impl BytecodeCompiler {
 
     fn compile_identifier_expr(&mut self, ident: &Identifier, target_reg: Reg) -> BytecodeResult {
         match self.scopes.get_var(&ident) {
-            Ok(decl) => {
-                self.compile_operand_assignment(target_reg, Operand::Reg(decl.register))
-            },
-            Err(_) => {
-                self.decl_dependencies.push(DeclDependency::new(ident.to_string(), target_reg));
-                Ok(Bytecode::new())
+            Ok(decl) => self.compile_operand_assignment(target_reg, Operand::Reg(decl.register)),
+            Err(_) => match self.functions.iter().find(|func| func.ident == *ident) {
+                Some(func) => {
+                    Ok(Bytecode::new()
+                        .add(Command::new(Instruction::BytecodeFuncCallback, vec![
+                            Operand::Reg(target_reg),
+                            Operand::function_addr(ident.clone()),
+                            Operand::RegistersArray(func.arguments.clone())])))
+                },
+                None => {
+                    self.decl_dependencies.add_decl_dep(ident.to_string(), target_reg);
+                    Ok(Bytecode::new())
+                },
             }
         }
     }
@@ -579,11 +609,13 @@ impl BytecodeCompiler {
                                             self.isa.common_literal_reg(&CommonLiteral::Void0))]));
         }
 
+        let func_ident =  match &func.id {
+            Some(ident) => ident.to_string(),
+            None => { return Err(CompilerError::are_unsupported("anonymous functions")); }
+        };
+
         self.functions.push(BytecodeFunction {
-            ident: match &func.id {
-                Some(ident) => ident.to_string(),
-                None => { return Err(CompilerError::are_unsupported("anonymous functions")); }
-            },
+            ident: func_ident,
             bytecode: func_bc,
             arguments: arg_regs,
             ast: Some(func.clone())
@@ -592,8 +624,8 @@ impl BytecodeCompiler {
         Ok(Bytecode::new())
     }
 
-    fn finalize_label_addresses(&self, mut bc: Bytecode) -> BytecodeResult {
-        let mut offset_counter = 0;
+    fn finalize_label_addresses(&self, mut bc: Bytecode, offset: usize) -> BytecodeResult {
+        let mut offset_counter = offset;
         let label_offsets: HashMap<Label, usize> = bc.elements.iter().filter_map(|element| {
             match element {
                 BytecodeElement::Command(cmd) => {offset_counter += cmd.length_in_bytes(); None},
@@ -606,7 +638,7 @@ impl BytecodeCompiler {
                 if let Operand::BranchAddr(token) = op {
                     *op = Operand::LongNum(*label_offsets.get(&token.label).ok_or(
                         CompilerError::Custom(format!("Found unknown label {}", token.label))
-                    )? as i64);
+                    )? as i32);
                 }
             }
         }
@@ -614,16 +646,18 @@ impl BytecodeCompiler {
         Ok(bc)
     }
 
-    fn finalize_function_bytescodes(&self, main: Bytecode) -> BytecodeResult{
+    fn finalize_function_bytescodes(&self, main: Bytecode) -> BytecodeResult {
         let mut functions_and_offsets: HashMap<String, (usize, &BytecodeFunction)> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
 
-        let functions_bytecode: Bytecode = self.functions.iter().map(|func| {
+        let functions_bytecode = self.functions.iter().map(|func| -> BytecodeResult {
             functions_and_offsets.insert(func.ident.to_string(), (offset_counter, func));
+
+            let func_bc = self.finalize_label_addresses(func.bytecode.clone(), offset_counter);
             offset_counter += func.bytecode.length_in_bytes();
 
-            func.bytecode.clone()
-        }).collect();
+            func_bc
+        }).collect::<BytecodeResult>()?;
 
         let mut complete_bytecode = main.combine(functions_bytecode);
 
@@ -642,7 +676,6 @@ impl BytecodeCompiler {
                 };
 
                 if let Operand::RegistersArray(arg_regs) = args {
-                    println!("{:?}", func.arguments);
                     cmd.operands[2] = Operand::RegistersArray(
                         func.arguments.iter().zip(arg_regs.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
                     );
@@ -659,7 +692,7 @@ impl BytecodeCompiler {
                 if let Operand::FunctionAddr(token) = op {
                     *op = Operand::LongNum(functions_and_offsets.get(&token.ident).ok_or(
                         CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
-                    )?.0 as i64);
+                    )?.0 as i32);
                 }
             }
         }

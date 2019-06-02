@@ -33,6 +33,7 @@ pub enum Instruction
     ReturnBytecodeFunc,
     Copy,
     Exit,
+    BytecodeFuncCallback,
 
     JumpCond,
     Jump,
@@ -79,6 +80,7 @@ impl Instruction {
             Instruction::JumpCond => 17,
             Instruction::Jump => 18,
             Instruction::JumpCondNeg => 19,
+            Instruction::BytecodeFuncCallback => 20,
 
             Instruction::CompEqual => 50,
             Instruction::CompNotEqual => 51,
@@ -114,6 +116,7 @@ impl Instruction {
             Instruction::JumpCond => "JumpCond",
             Instruction::Jump => "Jump",
             Instruction::JumpCondNeg => "JumpCondNeg",
+            Instruction::BytecodeFuncCallback => "BytecodeFuncCallback",
 
             Instruction::CompEqual => "CompEqual",
             Instruction::CompNotEqual => "CompNotEqual",
@@ -260,7 +263,7 @@ pub enum Operand
 {
     String(String),
     FloatNum(f64),
-    LongNum(i64),
+    LongNum(i32),
     ShortNum(u8),
     Reg(u8),
     RegistersArray(Vec<u8>),
@@ -270,20 +273,7 @@ pub enum Operand
 }
 
 impl Operand {
-    fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            Operand::String(string) => Operand::encode_string(string.to_string()),
-            Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
-            Operand::LongNum(long_num) => Operand::encode_long_num(long_num.clone() as u64),
-            Operand::ShortNum(num) |
-            Operand::Reg(num) => vec![*num],
-            Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
-            Operand::FunctionAddr(token)  => token.to_bytes(),
-            Operand::BranchAddr(token) => token.to_bytes()
-        }
-    }
-
-    pub fn from_literal(literal: BytecodeLiteral) -> Result<Self, CompilerError> {
+    pub fn from_literal(literal: BytecodeLiteral) -> CompilerResult<Self> {
         match literal {
             BytecodeLiteral::Null => Ok(Operand::Reg(253)), //TODO: Register of predefined void 0,
             BytecodeLiteral::String(string) => Ok(Operand::String(string)),
@@ -291,8 +281,12 @@ impl Operand {
             BytecodeLiteral::IntNumber(int) => {
                 if int <= 255 && int >= 0 {
                     Ok(Operand::ShortNum(int as u8))
+                } else if int <= std::i32::MAX.into() && int >= std::i32::MIN.into() {
+                    Ok(Operand::LongNum(int as i32))
                 } else {
-                    Ok(Operand::LongNum(int))
+                    Err(CompilerError::Custom(
+                        format!("Only integers from {} to {} are allowed. Consider using a float instead",
+                        std::i32::MIN, std::i32::MAX)))
                 }
             },
             BytecodeLiteral::Bool(bool) => Ok(Operand::ShortNum(bool as u8)),
@@ -343,6 +337,13 @@ impl Operand {
         encoded
     }
 
+    fn encode_num(num: u32) -> Vec<u8> {
+        vec![(((num & 0xff000000) >> 24) as u8),
+             (((num & 0x00ff0000) >> 16) as u8),
+             (((num & 0x0000ff00) >> 8) as u8),
+             (((num & 0x000000ff) >> 0) as u8)]
+    }
+
     fn encode_long_num(num: u64) -> Vec<u8> {
         vec![(((num & 0xff000000_00000000) >> 56) as u8),
              (((num & 0x00ff0000_00000000) >> 48) as u8),
@@ -356,6 +357,21 @@ impl Operand {
 
     fn encode_float_num(num: f64) -> Vec<u8> {
         Operand::encode_long_num(num.to_bits())
+    }
+}
+
+impl ToBytes for Operand {
+    fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Operand::String(string) => Operand::encode_string(string.to_string()),
+            Operand::FloatNum(float_num) => Operand::encode_float_num(float_num.clone()),
+            Operand::LongNum(long_num) => Operand::encode_num(long_num.clone() as u32),
+            Operand::ShortNum(num) |
+            Operand::Reg(num) => vec![*num],
+            Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
+            Operand::FunctionAddr(token)  => token.to_bytes(),
+            Operand::BranchAddr(token) => token.to_bytes()
+        }
     }
 }
 
@@ -391,11 +407,11 @@ fn test_encode_registers_array() {
 
 #[test]
 fn test_encode_long_num() {
-    assert_eq!(Operand::LongNum(1234567890123456789).to_bytes(),
-                vec![0x11, 0x22, 0x10, 0xf4, 0x7d, 0xe9, 0x81, 0x15]);
+    assert_eq!(Operand::LongNum(1_234_567_891).to_bytes(),
+                vec![0x49, 0x96, 0x02, 0xD3]);
 
-    assert_eq!(Operand::LongNum(-1234567890123456789 as i64).to_bytes(),
-                vec![0xEE, 0xDD, 0xEF, 0x0B, 0x82, 0x16, 0x7E, 0xEB])
+    assert_eq!(Operand::LongNum(-1_234_567_891 as i32).to_bytes(),
+                vec![0xB6, 0x69, 0xFD, 0x2D])
 }
 
 #[test]
