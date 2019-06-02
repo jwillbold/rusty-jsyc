@@ -1,0 +1,1 @@
+cargo run "../playground/minimal/unobfuscated/code.js" "../vm/vm.js" "../playground/minimal/obfuscated" -d
