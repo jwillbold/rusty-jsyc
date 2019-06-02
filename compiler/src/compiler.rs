@@ -615,11 +615,11 @@ impl BytecodeCompiler {
     }
 
     fn finalize_function_bytescodes(&self, main: Bytecode) -> BytecodeResult{
-        let mut function_offsets: HashMap<String, usize> = HashMap::new();
+        let mut functions_and_offsets: HashMap<String, (usize, &BytecodeFunction)> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
 
         let functions_bytecode: Bytecode = self.functions.iter().map(|func| {
-            function_offsets.insert(func.ident.to_string(), offset_counter);
+            functions_and_offsets.insert(func.ident.to_string(), (offset_counter, func));
             offset_counter += func.bytecode.length_in_bytes();
 
             func.bytecode.clone()
@@ -627,12 +627,39 @@ impl BytecodeCompiler {
 
         let mut complete_bytecode = main.combine(functions_bytecode);
 
+        // Patch bytecode function argument lists with
+        for cmd in complete_bytecode.commands_iter_mut() {
+            if let Instruction::CallBytecodeFunc = cmd.instruction {
+                let target_func = cmd.operands.get(0).expect("Failed to retrieve bytecode functions token");
+                let args = cmd.operands.get(2).expect("Failed to retrieve bytecode functions argument list");
+
+                let func = match target_func {
+                    Operand::FunctionAddr(token) => functions_and_offsets.get(&token.ident).ok_or(
+                        CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
+                    )?.1,
+                    _ => { return Err(CompilerError::Custom(
+                        "Bytecode function name should be a function address token".into())) }
+                };
+
+                if let Operand::RegistersArray(arg_regs) = args {
+                    println!("{:?}", func.arguments);
+                    cmd.operands[2] = Operand::RegistersArray(
+                        func.arguments.iter().zip(arg_regs.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
+                    );
+                } else {
+                    return Err(CompilerError::Custom(
+                        "Bytecode function argument should be a registers array".into()))
+                }
+            }
+        }
+
+        // Replace function tokens (function names) with their corresponding bytecode offset
         for cmd in complete_bytecode.commands_iter_mut() {
             for op in cmd.operands.iter_mut() {
                 if let Operand::FunctionAddr(token) = op {
-                    *op = Operand::LongNum(*function_offsets.get(&token.ident).ok_or(
+                    *op = Operand::LongNum(functions_and_offsets.get(&token.ident).ok_or(
                         CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
-                    )? as i64);
+                    )?.0 as i64);
                 }
             }
         }
