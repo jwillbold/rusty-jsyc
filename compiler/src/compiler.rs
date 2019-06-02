@@ -173,17 +173,16 @@ impl BytecodeCompiler {
     }
 
     fn compile_return_stmt(&mut self, ret: &Option<Expr>) -> BytecodeResult {
-        let (bytecode, ret_regs) = match ret {
+        let (bytecode, ret_reg) = match ret {
             Some(ret_expr) => {
                 let (bytecode, ret_reg) = self.maybe_compile_expr(ret_expr, None)?;
-                (bytecode, vec![ret_reg])
+                (bytecode, ret_reg)
             },
-            None => (Bytecode::new(), vec![])
+            None => (Bytecode::new(), self.isa.common_literal_reg(&CommonLiteral::Void0))
         };
 
         Ok(bytecode
-            .add(Command::new(Instruction::ReturnBytecodeFunc,
-                              vec![Operand::RegistersArray(ret_regs)]))
+            .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(ret_reg)]))
         )
     }
 
@@ -196,7 +195,7 @@ impl BytecodeCompiler {
         let else_branch_end_label = self.label_generator.generate_label();
 
         let bytecode = test_bytecode
-                .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
+                .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
                 .combine(if_branch_bc);
 
         if let Some(else_branch) = if_stmt.alternate.borrow() {
@@ -223,7 +222,7 @@ impl BytecodeCompiler {
 
         Ok(test_bc
             .add_label(while_cond_label)
-            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
+            .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
             .combine(self.compile_stmt(while_stmt.body.borrow())?)
             .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(while_cond_label)]))
             .add_label(while_end_label))
@@ -259,7 +258,7 @@ impl BytecodeCompiler {
                 let (test_bc, test_reg) = self.maybe_compile_expr(&test_expr, None)?;
 
                 test_bc
-                    .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
+                    .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
             }
             None => Bytecode::new()
         };
@@ -428,17 +427,27 @@ impl BytecodeCompiler {
             .add_label(after_cons_label))
     }
 
-    fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], _target_reg: Reg) -> BytecodeResult {
+    fn compile_bytecode_func_call(&mut self, func: String, args: &[Expr], target_reg: Reg) -> BytecodeResult {
         let (args_bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = args.iter().map(|arg_expr| {
             self.maybe_compile_expr(arg_expr, None)
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
         Ok(args_bytecode.into_iter().collect::<Bytecode>()
-            .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::function_addr(func), Operand::RegistersArray(arg_regs)])))
+            .add(Command::new(Instruction::CallBytecodeFunc,
+                                vec![Operand::function_addr(func),
+                                     Operand::Reg(target_reg),
+                                     Operand::RegistersArray(arg_regs)])))
     }
 
     fn compile_extern_func_call(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
-        let (callee_bc, callee_reg) = self.maybe_compile_expr(call.callee.borrow(), None)?;
+        let (callee_bc, callee_reg) = self.maybe_compile_expr(&call.callee, None)?;
+
+        let (callee_this_bc, callee_this_reg) =
+            if let Expr::Member(member_expr) = call.callee.borrow() {
+                self.maybe_compile_expr(&member_expr.object, None)?
+            } else {
+                (Bytecode::new(), self.isa.common_literal_reg(&CommonLiteral::Void0))
+            };
 
         let (bytecode, arg_regs): (Vec<Bytecode>, Vec<Reg>) = call.arguments.iter().map(|arg| {
             self.maybe_compile_expr(arg, None)
@@ -446,9 +455,11 @@ impl BytecodeCompiler {
 
         Ok(bytecode.into_iter().collect::<Bytecode>()
             .combine(callee_bc)
+            .combine(callee_this_bc)
             .add(Command::new(Instruction::CallFunc, vec![
                     Operand::Reg(target_reg),
                     Operand::Reg(callee_reg),
+                    Operand::Reg(callee_this_reg),
                     Operand::RegistersArray(arg_regs)
                 ]
         )))
@@ -563,13 +574,15 @@ impl BytecodeCompiler {
 
 
         if !func_bc.last_op_is_return() {
-            func_bc = func_bc.add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::RegistersArray(vec![])]));
+            func_bc = func_bc.add(Command::new(Instruction::ReturnBytecodeFunc,
+                                    vec![Operand::Reg(
+                                            self.isa.common_literal_reg(&CommonLiteral::Void0))]));
         }
 
         self.functions.push(BytecodeFunction {
             ident: match &func.id {
                 Some(ident) => ident.to_string(),
-                None => unimplemented!("Anonymous function")
+                None => { return Err(CompilerError::are_unsupported("anonymous functions")); }
             },
             bytecode: func_bc,
             arguments: arg_regs,

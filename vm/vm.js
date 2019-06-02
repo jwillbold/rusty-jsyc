@@ -50,14 +50,18 @@ const OP = {
   JUMP: 18,
   JUMP_COND_NEG: 19,
 
-  // CompEqual: 50,
-  // CompNotEqual: 51,
+  COMP_EQUAL: 50,
+  COM_NOT_EQUAL: 51,
   // CompStrictEqual: 52,
   // CompStrictNotEqual: 53,
   // CompLessThan: 54,
   // CompGreaterThan: 55,
+  COMP_LESS_THAN: 54,
+  COMP_GREATHER_THAN: 55,
   // CompLessThanEqual: 56,
   // CompGreaterThanEqual: 57,
+  COMP_LESS_THAN_EQUAL: 56,
+  COMP_GREATHER_THAN_EQUAL: 57,
 
   // Math
   ADD: 100,
@@ -177,6 +181,54 @@ class VM {
       if(!cond) {
         vm.setReg(REGS.STACK_PTR, jump);
       }
+    }
+
+    this.ops[OP.COMP_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left == right);
+    }
+
+    this.ops[OP.COMP_NOT_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left != right);
+    }
+
+    this.ops[OP.COMP_LESS_THAN] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left < right);
+    }
+
+    this.ops[OP.COMP_GREATHER_THAN] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left > right);
+    }
+
+    this.ops[OP.COMP_LESS_THAN_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left <= right);
+    }
+
+    this.ops[OP.COMP_GREATHER_THAN_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left >= right);
     }
 
     this.ops[OP.ADD] = function(vm) {
