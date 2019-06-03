@@ -15,9 +15,11 @@ use std::collections::HashMap;
 pub struct BytecodeFunction
 {
     ident: String,
-    bytecode: Bytecode,
+    // During the compilation of a function block, "bytecode" is not know yet (obviously).
+    // But an instance of this struct is inserted into the function list anyway,
+    // to allow functions using callback to themself.
+    bytecode: Option<Bytecode>,
     arguments: Vec<Register>,
-    ast: Option<Function>
 }
 
 #[derive(Clone)]
@@ -583,6 +585,11 @@ impl BytecodeCompiler {
             return Err(CompilerError::are_unsupported("generator and async functions"))
         }
 
+        let func_ident =  match &func.id {
+            Some(ident) => ident.to_string(),
+            None => { return Err(CompilerError::are_unsupported("anonymous functions")); }
+        };
+
         self.scopes.enter_new_scope()?;
 
         let arg_regs = func.params.iter().map(|param| {
@@ -598,6 +605,12 @@ impl BytecodeCompiler {
             }
         }).collect::<CompilerResult<Vec<Register>>>()?;
 
+        self.functions.push(BytecodeFunction {
+            ident: func_ident,
+            bytecode: None,
+            arguments: arg_regs,
+        });
+
         let mut func_bc = func.body.iter().map(|part| self.compile_program_part(&part)).collect::<BytecodeResult>()?;
 
         self.scopes.leave_current_scope()?;
@@ -609,16 +622,12 @@ impl BytecodeCompiler {
                                             self.isa.common_literal_reg(&CommonLiteral::Void0))]));
         }
 
-        let func_ident =  match &func.id {
-            Some(ident) => ident.to_string(),
-            None => { return Err(CompilerError::are_unsupported("anonymous functions")); }
-        };
-
+        // It is save to unwrap here since it was definitly pushed above
+        let phantom_func = self.functions.pop().unwrap();
         self.functions.push(BytecodeFunction {
-            ident: func_ident,
-            bytecode: func_bc,
-            arguments: arg_regs,
-            ast: Some(func.clone())
+            ident: phantom_func.ident,
+            bytecode: Some(func_bc),
+            arguments: phantom_func.arguments,
         });
 
         Ok(Bytecode::new())
@@ -652,16 +661,18 @@ impl BytecodeCompiler {
 
         let functions_bytecode = self.functions.iter().map(|func| -> BytecodeResult {
             functions_and_offsets.insert(func.ident.to_string(), (offset_counter, func));
+            let func_bc = func.bytecode.clone().expect("Found phantom function defintion");
+            let func_bc_length = func_bc.length_in_bytes();
 
-            let func_bc = self.finalize_label_addresses(func.bytecode.clone(), offset_counter);
-            offset_counter += func.bytecode.length_in_bytes();
+            let finalized_func_bc = self.finalize_label_addresses(func_bc, offset_counter);
+            offset_counter += func_bc_length;
 
-            func_bc
+            finalized_func_bc
         }).collect::<BytecodeResult>()?;
 
         let mut complete_bytecode = main.combine(functions_bytecode);
 
-        // Patch bytecode function argument lists with
+        // Patch bytecode function argument lists
         for cmd in complete_bytecode.commands_iter_mut() {
             if let Instruction::CallBytecodeFunc = cmd.instruction {
                 let target_func = cmd.operands.get(0).expect("Failed to retrieve bytecode functions token");
