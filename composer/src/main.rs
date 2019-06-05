@@ -8,7 +8,6 @@ mod composer;
 mod errors;
 
 use std::io::Read;
-use std::env;
 use std::fs;
 use compiler::{Bytecode, JSSourceCode, BytecodeCompiler};
 use clap::{Arg, App};
@@ -47,6 +46,9 @@ fn main() -> CompositionResult<()> {
                     .arg(Arg::with_name("OUTPUT_DIR")
                             .value_name("/output/dir")
                             .required(true))
+                    .arg(Arg::with_name("INDEX_HTML")
+                            .value_name("/path/to/index.html")
+                            .required(false))
                     .arg(Arg::with_name("s")
                             .short("s")
                             .long("show-bytecode"))
@@ -103,6 +105,12 @@ fn main() -> CompositionResult<()> {
 
     if matches.is_present("s") {
         println!("Bytecode:\n{}", &bytecode);
+    }
+
+    if let Some(index_html_template) = matches.value_of("INDEX_HTML") {
+        let html_template = fs::read_to_string(index_html_template)?;
+        let index_html = html_template.replace("base64EncodedBytecode", &bytecode.encode_base64());
+        fs::write(index_html_template, index_html)?;
     }
 
     println!("Starting to compose VM and bytecode...");

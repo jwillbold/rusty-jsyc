@@ -10,6 +10,11 @@
 </head>
 <body>
   <canvas id="canvas" width="750" height="600"></canvas>
-  <script src='./snake.js'> </script>
+  <script src='./vm.js'> </script>
+  <script>
+  var vm = new VM();
+  vm.init("base64EncodedBytecode");
+  vm.run();
+  </script>
 </body>
 </html>

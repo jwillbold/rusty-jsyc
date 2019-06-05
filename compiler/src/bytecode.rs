@@ -216,6 +216,18 @@ impl BytecodeLiteral {
     }
 }
 
+impl std::fmt::Display for BytecodeLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BytecodeLiteral::Null => write!(f, "Null"),
+            BytecodeLiteral::String(string) => write!(f, "\"{}\"", string),
+            BytecodeLiteral::FloatNum(float) => write!(f, "Float(){})", float),
+            BytecodeLiteral::IntNumber(signed_int) => write!(f, "SignedInt({})", signed_int),
+            BytecodeLiteral::Bool(bool) => write!(f, "Bool({})", bool),
+        }
+    }
+}
+
 #[test]
 fn test_bytecode_literal_from_literal() {
     assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0".into())).unwrap(),
@@ -378,7 +390,7 @@ impl ToBytes for Operand {
 impl std::fmt::Display for Operand {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Operand::String(string) => write!(f, "String({})", string),
+            Operand::String(string) => write!(f, "String(\"{}\")", string),
             Operand::FloatNum(float) => write!(f, "Float({})", float),
             Operand::LongNum(long_num) => write!(f, "LongNum({})", long_num),
             Operand::ShortNum(short_num) => write!(f, "ShortNum({})", short_num),
