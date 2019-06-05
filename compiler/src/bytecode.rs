@@ -147,7 +147,11 @@ pub struct BytecodeAddrToken {
 
 impl ToBytes for BytecodeAddrToken {
     fn to_bytes(&self) -> Vec<u8> {
-        vec![0; 8]
+        vec![0; 4]
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        4
     }
 }
 
@@ -158,7 +162,27 @@ pub struct LabelAddrToken {
 
 impl ToBytes for LabelAddrToken {
     fn to_bytes(&self) -> Vec<u8> {
-        vec![0; 8]
+        vec![0; 4]
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        4
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct BytecodeFuncArguments {
+    pub args: Vec<Register>
+}
+
+impl ToBytes for BytecodeFuncArguments {
+    fn to_bytes(&self) -> Vec<u8> {
+        vec![0; self.args.len()]
+        // Operand::encode_registers_array(&regs)
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        1 + 2*self.args.len()
     }
 }
 
@@ -177,7 +201,13 @@ impl BytecodeLiteral {
     pub fn from_lit(lit: Literal) -> CompilerResult<Self> {
         match lit {
             Literal::Null => Ok(BytecodeLiteral::Null),
-            Literal::String(string) => Ok(BytecodeLiteral::String(string)),
+            Literal::String(string) => Ok({
+                if string.len() > 0 {
+                    BytecodeLiteral::String(string[1..string.len()-1].to_string())
+                } else {
+                    BytecodeLiteral::String(string)
+                }
+            }),
             Literal::Number(num_string) => {
                 if let Ok(dec_num) = num_string.parse::<i64>() {
                     Ok(BytecodeLiteral::IntNumber(dec_num))
@@ -281,7 +311,8 @@ pub enum Operand
     RegistersArray(Vec<u8>),
 
     FunctionAddr(BytecodeAddrToken),
-    BranchAddr(LabelAddrToken)
+    BranchAddr(LabelAddrToken),
+    BytecodeFuncArguments(BytecodeFuncArguments)
 }
 
 impl Operand {
@@ -315,6 +346,10 @@ impl Operand {
 
     pub fn branch_addr(label: Label) -> Self {
         Operand::BranchAddr(LabelAddrToken{ label })
+    }
+
+    pub fn bc_func_args(arg_regs: Vec<Register>) -> Self {
+        Operand::BytecodeFuncArguments(BytecodeFuncArguments{ args: arg_regs })
     }
 
     pub fn is_worth_caching(&self) -> bool {
@@ -382,7 +417,22 @@ impl ToBytes for Operand {
             Operand::Reg(num) => vec![*num],
             Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
             Operand::FunctionAddr(token)  => token.to_bytes(),
-            Operand::BranchAddr(token) => token.to_bytes()
+            Operand::BranchAddr(token) => token.to_bytes(),
+            Operand::BytecodeFuncArguments(args) => args.to_bytes(),
+        }
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        match self {
+            Operand::String(string) => 2 + string.len(),
+            Operand::FloatNum(_) => 8,
+            Operand::LongNum(_) => 4,
+            Operand::ShortNum(_) |
+            Operand::Reg(_) => 1,
+            Operand::RegistersArray(regs) => 1 + regs.len(),
+            Operand::FunctionAddr(token) => token.length_in_bytes(),
+            Operand::BranchAddr(token) => token.length_in_bytes(),
+            Operand::BytecodeFuncArguments(args) => args.length_in_bytes(),
         }
     }
 }
@@ -399,6 +449,7 @@ impl std::fmt::Display for Operand {
 
             Operand::FunctionAddr(bc_addr_token) => write!(f, "FunctionAddr({:?})", bc_addr_token),
             Operand::BranchAddr(label_addr_token) => write!(f, "BranchAddr({:?})", label_addr_token),
+            Operand::BytecodeFuncArguments(args) => write!(f, "BytecodeFuncArguments({:?})", args),
         }
     }
 }
@@ -467,6 +518,10 @@ impl ToBytes for Command {
         line.append(&mut self.operands.iter().map(|operand| operand.to_bytes()).flatten().collect::<Vec<u8>>());
         line
     }
+
+    fn length_in_bytes(&self) -> usize {
+        1 + self.operands.iter().fold(0, |acc, x| acc + x.length_in_bytes())
+    }
 }
 
 #[test]
@@ -496,6 +551,13 @@ impl ToBytes for BytecodeElement {
         match self {
             BytecodeElement::Command(cmd) => cmd.to_bytes(),
             BytecodeElement::Label(_) => vec![]
+        }
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        match self {
+            BytecodeElement::Command(cmd) => cmd.length_in_bytes(),
+            BytecodeElement::Label(_) => 0
         }
     }
 }
@@ -580,6 +642,10 @@ impl FromIterator<Bytecode> for Bytecode {
 impl ToBytes for Bytecode {
     fn to_bytes(&self) -> Vec<u8> {
         self.elements.iter().map(|element| element.to_bytes()).flatten().collect()
+    }
+
+    fn length_in_bytes(&self) -> usize {
+        self.elements.iter().fold(0, |acc, element| acc + element.length_in_bytes())
     }
 }
 

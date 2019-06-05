@@ -180,7 +180,8 @@ impl InstructionSet {
             Operand::Reg(_) => Instruction::Copy,
             Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation"),
             Operand::FunctionAddr(_) |
-            Operand::BranchAddr(_) => unimplemented!("...")
+            Operand::BranchAddr(_) |
+            Operand::BytecodeFuncArguments(_) => unimplemented!("...")
         };
 
         Command::new(instruction, vec![Operand::Reg(left), right])

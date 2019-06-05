@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BytecodeFunction
 {
     ident: String,
@@ -461,7 +461,7 @@ impl BytecodeCompiler {
             .add(Command::new(Instruction::CallBytecodeFunc,
                                 vec![Operand::function_addr(func),
                                      Operand::Reg(target_reg),
-                                     Operand::RegistersArray(arg_regs)])))
+                                     Operand::bc_func_args(arg_regs)])))
     }
 
     fn compile_extern_func_call(&mut self, call: &CallExpr, target_reg: Reg) -> BytecodeResult {
@@ -544,7 +544,7 @@ impl BytecodeCompiler {
     fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
         let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), None)?;
         let (prop_bc, prop_reg) =  match member.property.borrow() {
-            Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(ident.to_string())), None)?,
+            Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(format!("\"{}\"", ident))), None)?,
             _ => self.maybe_compile_expr(member.property.borrow(), None)?
         };
 
@@ -659,17 +659,18 @@ impl BytecodeCompiler {
         let mut functions_and_offsets: HashMap<String, (usize, &BytecodeFunction)> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
 
+        println!("main length: 0x{:x}",offset_counter);
+
         let functions_bytecode = self.functions.iter().map(|func| -> BytecodeResult {
             functions_and_offsets.insert(func.ident.to_string(), (offset_counter, func));
+
             let func_bc = func.bytecode.clone().expect("Found phantom function defintion");
-            let func_bc_length = func_bc.length_in_bytes();
+            let finalized_func_bc = self.finalize_label_addresses(func_bc, offset_counter)?;
+            offset_counter += finalized_func_bc.length_in_bytes();
 
-            let finalized_func_bc = self.finalize_label_addresses(func_bc, offset_counter);
-            offset_counter += func_bc_length;
-
-            finalized_func_bc
+            Ok(finalized_func_bc)
         }).collect::<BytecodeResult>()?;
-
+        
         let mut complete_bytecode = main.combine(functions_bytecode);
 
         // Patch bytecode function argument lists
@@ -686,13 +687,17 @@ impl BytecodeCompiler {
                         "Bytecode function name should be a function address token".into())) }
                 };
 
-                if let Operand::RegistersArray(arg_regs) = args {
+                // if let Operand::RegistersArray(arg_regs) = args {
+                //     cmd.operands[2] = Operand::RegistersArray(
+                //         func.arguments.iter().zip(arg_regs.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
+                //     );
+                if let Operand::BytecodeFuncArguments(arg_regs) = args {
                     cmd.operands[2] = Operand::RegistersArray(
-                        func.arguments.iter().zip(arg_regs.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
+                        func.arguments.iter().zip(arg_regs.args.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
                     );
                 } else {
                     return Err(CompilerError::Custom(
-                        "Bytecode function argument should be a registers array".into()))
+                        "Bytecode function argument should be a bytecode func args placeholder".into()))
                 }
             }
         }
@@ -701,7 +706,7 @@ impl BytecodeCompiler {
         for cmd in complete_bytecode.commands_iter_mut() {
             for op in cmd.operands.iter_mut() {
                 if let Operand::FunctionAddr(token) = op {
-                    *op = Operand::LongNum(functions_and_offsets.get(&token.ident).ok_or(
+                    *op = Operand::LongNum(functions_and_offsets.get(&token.ident).map(|x| {println!("Patching {} -> 0x{:x}", token.ident, x.0); x}).ok_or(
                         CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
                     )?.0 as i32);
                 }
@@ -730,7 +735,7 @@ fn test_bytecode_compile_var_decl() {
 
      let mut test_expr_str_lit = BytecodeCompiler::new();
      assert_eq!(test_expr_str_lit.compile_var_decl(&VariableKind::Var, &vec![
-             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Literal(Literal::String("TestString".into())))}
+             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Literal(Literal::String("\"TestString\"".into())))}
          ]).unwrap(),
          Bytecode::new().add(Command::new(Instruction::LoadString,
              vec![Operand::Reg(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
