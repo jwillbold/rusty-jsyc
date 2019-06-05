@@ -296,6 +296,8 @@ class VM {
 
     this.setReg(REGS.VOID, void 0);
     this.setReg(REGS.EMPTY_OBJ, {});
+
+    this.setReg(FutureDeclerationsPlaceHolder, 0);
   }
 
   _decodeBytecode(encodedBytecode) {

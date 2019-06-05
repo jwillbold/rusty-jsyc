@@ -14,7 +14,7 @@ pub mod scope;
 pub mod instruction_set;
 
 pub use crate::bytecode::{Bytecode, BytecodeElement, Command, Instruction, Operand, ToBytes};
-pub use crate::compiler::{BytecodeCompiler};
+pub use crate::compiler::{BytecodeCompiler, DeclDepencies};
 pub use crate::error::{CompilerResult, CompilerError};
 pub use crate::instruction_set::{InstructionSet};
 pub use crate::jshelper::{JSSourceCode, JSAst};

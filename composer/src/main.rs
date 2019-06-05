@@ -108,15 +108,20 @@ fn main() -> CompositionResult<()> {
     }
 
     if let Some(index_html_template) = matches.value_of("INDEX_HTML") {
-        let html_template = fs::read_to_string(index_html_template)?;
+        let index_html_template_path = std::path::Path::new(index_html_template);
+        println!("Using html template {}", index_html_template_path.display());
+        let html_template = fs::read_to_string(index_html_template_path)?;
         let index_html = html_template.replace("base64EncodedBytecode", &bytecode.encode_base64());
-        fs::write(index_html_template, index_html)?;
+
+        fs::write(output_dir.join(index_html_template_path.file_name()
+                        .expect(&format!("{} is not a valid file path", index_html_template_path.display()))),
+                  index_html)?;
     }
 
     println!("Starting to compose VM and bytecode...");
     let composer = Composer::new(vm, bytecode);
 
-    let (vm, bytecode) = composer.compose()?;
+    let (vm, bytecode) = composer.compose(compiler.decl_dependencies())?;
     vm.save_to_file(output_dir.join("vm.js"))?;
 
     let base64_bytecode = bytecode.encode_base64();
