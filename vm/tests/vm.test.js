@@ -47,12 +47,21 @@ const testDataSet = [
     ],
   },
   {
-    name: "Load float",
+    name: "Load float (12.5)",
     bytecode: [
       OP.LOAD_FLOAT, 150, ...[0x40, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
     ],
     expected_registers: [
       [150, 12.5]
+    ],
+  },
+  {
+    name: "Load float (0.5)",
+    bytecode: [
+      OP.LOAD_FLOAT, 150, ...[0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    ],
+    expected_registers: [
+      [150, 0.5]
     ],
   },
   {

@@ -49,6 +49,7 @@ impl Scope {
         })
     }
 
+    // TODO: is this still required?
     pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
         self.unused_register.front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
@@ -155,6 +156,7 @@ impl Scopes
         self.current_scope_mut()?.reserve_register_back()
     }
 
+    // TODO: is this still required?
     pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
         self.current_scope()?.get_throwaway_register()
     }
@@ -176,7 +178,8 @@ impl Scopes
     }
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
-        Ok(self.scopes.push(Scope::derive_scope(self.current_scope()?)?))
+        // Ok(self.scopes.push(Scope::derive_scope(self.current_scope()?)?))
+        Ok(())
     }
 
     pub fn current_scope(&self) -> Result<&Scope, CompilerError> {
@@ -192,9 +195,9 @@ impl Scopes
     }
 
     pub fn leave_current_scope(&mut self) -> Result<(), CompilerError> {
-        let _scope = self.scopes.pop().ok_or(
-            CompilerError::Custom("Cannot leave inexisting scope".into())
-        )?;
+        // let _scope = self.scopes.pop().ok_or(
+        //     CompilerError::Custom("Cannot leave inexisting scope".into())
+        // )?;
         Ok(())
     }
 }

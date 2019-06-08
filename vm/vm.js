@@ -11,6 +11,8 @@ if(window.atob === void 0) {
   window.atob = require('atob');
 }
 
+var FutureDeclerationsPlaceHolder = {}
+
 
 const REGS = {
   // External dependencies
@@ -50,10 +52,13 @@ const OP = {
   JUMP: 18,
   JUMP_COND_NEG: 19,
   BCFUNC_CALLBACK: 20,
+  PROPSET: 21,
 
   // Comparisons
   COMP_EQUAL: 50,
-  COM_NOT_EQUAL: 51,
+  COMP_NOT_EQUAL: 51,
+  COMP_STRICT_EQUAL: 52,
+  COMP_STRICT_NOT_EQUAL: 53,
   COMP_LESS_THAN: 54,
   COMP_GREATHER_THAN: 55,
   COMP_LESS_THAN_EQUAL: 56,
@@ -105,6 +110,15 @@ class VM {
       vm.setReg(dst, obj[prop]);
     };
 
+    this.ops[OP.PROPSET] = function(vm) {
+      var dstObj = vm.getByte(), dstProp = vm.getByte(), val = vm.getByte();
+      dstObj = vm.getReg(dstObj);
+      dstProp = vm.getReg(dstProp);
+      val = vm.getReg(val);
+
+      dstObj[dstProp] = val;
+    };
+
     this.ops[OP.FUNC_CALL] = function(vm) {
       var dst = vm.getByte(), func = vm.getByte(), funcThis = vm.getByte(),
           args = vm._loadArrayFromRegister();
@@ -122,13 +136,13 @@ class VM {
     }
 
     this.ops[OP.CALL_BCFUNC] = function(vm) {
-      var funcOffset = vm.getByte();
+      var funcOffset = vm._loadLongNum();
       var returnReg = vm.getByte();
       var argsArray = vm._loadRegistersArray();
       vm.reg_backups.push([vm.regs.slice(), returnReg]);
 
-      for(let i = 0; i <= argsArray.length/2; i+=2) {
-        vm.setReg(argsArray[i+1], vm.getReg(argsArray[i]));
+      for(let i = 0; i < argsArray.length; i+=2) {
+        vm.setReg(argsArray[i], vm.getReg(argsArray[i+1]));
       }
 
       vm.setReg(REGS.STACK_PTR, funcOffset);
@@ -142,7 +156,9 @@ class VM {
 
       regBackups[returnToReg] = vm.getReg(returnFromReg);
 
-      vm.regs = regBackups;
+      // vm.regs = regBackups;
+      vm.setReg(REGS.STACK_PTR, regBackups[REGS.STACK_PTR]);
+      vm.setReg(returnToReg, vm.getReg(returnFromReg));
     }
 
     this.ops[OP.COPY] = function(vm) {
@@ -155,27 +171,27 @@ class VM {
     }
 
     this.ops[OP.COND_JUMP] = function(vm) {
-      var cond = vm.getByte(), jump = vm.getByte();
+      var cond = vm.getByte();
+      var offset = vm._loadLongNum();
       cond = vm.getReg(cond);
-      jump = vm.getReg(jump);
 
       if(cond) {
-        vm.setReg(REGS.STACK_PTR, jump);
+        vm.setReg(REGS.STACK_PTR, offset);
       }
     }
 
     this.ops[OP.JUMP] = function(vm) {
-      var jump = vm.getReg(vm.getByte());
-      vm.setReg(REGS.STACK_PTR, jump);
+      var offset = vm._loadLongNum();
+      vm.setReg(REGS.STACK_PTR, offset);
     }
 
     this.ops[OP.JUMP_COND_NEG] = function(vm) {
-      var cond = vm.getByte(), jump = vm.getByte();
+      var cond = vm.getByte();
+      var offset = vm._loadLongNum();
       cond = vm.getReg(cond);
-      jump = vm.getReg(jump);
 
       if(!cond) {
-        vm.setReg(REGS.STACK_PTR, jump);
+        vm.setReg(REGS.STACK_PTR, offset);
       }
     }
 
@@ -203,6 +219,22 @@ class VM {
       right = vm.getReg(right);
 
       vm.setReg(dst, left != right);
+    }
+
+    this.ops[OP.COMP_STRICT_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left === right);
+    }
+
+    this.ops[OP.COMP_STRICT_NOT_EQUAL] = function(vm) {
+      var dst = vm.getByte(), left = vm.getByte(), right = vm.getByte();
+      left = vm.getReg(left);
+      right = vm.getReg(right);
+
+      vm.setReg(dst, left !== right);
     }
 
     this.ops[OP.COMP_LESS_THAN] = function(vm) {
@@ -275,7 +307,12 @@ class VM {
     while(this.regs[REGS.STACK_PTR] < this.stack.length) {
       var op_code = this.getByte();
       var op = this.ops[op_code];
-      op(this);
+      try {
+        op(this);
+      } catch(e) {
+        console.log("Current stack ptr: ", this.regs[REGS.STACK_PTR], "op code: ", op_code);
+        throw e;
+      }
     }
 
     return this.regs[REGS.RETURN_VAL];
@@ -283,8 +320,8 @@ class VM {
 
   runAt(offset) {
     this.reg_backups.push([this.regs.slice(), REGS.BCFUNC_RETURN]);
-    setReg(REGS.STACK_PTR, offset);
-    run();
+    this.setReg(REGS.STACK_PTR, offset);
+    this.run();
   }
 
   init(bytecode) {
@@ -296,6 +333,10 @@ class VM {
 
     this.setReg(REGS.VOID, void 0);
     this.setReg(REGS.EMPTY_OBJ, {});
+
+    this.setReg(255, 0);
+    this.setReg(254, 1);
+    this.setReg(253, void 0);
 
     this.setReg(FutureDeclerationsPlaceHolder, 0);
   }
@@ -343,36 +384,32 @@ class VM {
   }
 
   _loadFloat() {
-    var num_str = "";
-    for(let i = 0; i<8; i++) {
-      let x = this.getByte();
-      num_str += x < 0x10 ? '0'+ x.toString(16) : x.toString(16);
+    var binary = "";
+    for(let i = 0; i<8; ++i) {
+      binary += this.getByte().toString(2).padStart(8, '0');
     }
 
-    var binary = parseInt(num_str, 16).toString(2);
-    binary = '0'*(64-binary.length) + binary;
-
     var sign = (binary.charAt(0) == '1')? -1 : 1;
-    var exponent = parseInt(binary.substr(1, 11), 2) - 0x3ff;
+    var exponent = parseInt(binary.substr(1, 11), 2);
     var significandBase = binary.substr(12);
-    var significandBin = '1' + significandBase;
 
-    if (exponent == -0x3ff) {
+    var significandBin;
+    if (exponent == 0) {
         if (significandBase.indexOf('1') == -1) {
+          // exponent and significand are zero
             return 0;
         } else {
             exponent = -0x3fe;
-            significandBin = '0'+significandBase;
+            significandBin = '0' + significandBase;
         }
+    } else {
+      exponent -= 0x3ff;
+      significandBin = '1' + significandBase;
     }
 
-    var i = 0;
-    var val = 1;
     var significand = 0;
-    while (i < significandBin.length) {
-        significand += val * parseInt(significandBin.charAt(i));
-        val = val / 2;
-        i++;
+    for(let i = 0, val = 1; i < significandBin.length; ++i, val /= 2) {
+      significand += val * parseInt(significandBin.charAt(i));
     }
 
     return sign * significand * Math.pow(2, exponent);

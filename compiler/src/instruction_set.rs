@@ -119,30 +119,32 @@ impl CommonLiteralRegs {
 
 
 make_enum_helper!(
-enum MultipurposeRegister {
+enum ReservedeRegister {
     BytecodePointer,
-    RegistersBackup
+    RegistersBackup,
+    TrashRegister
 });
 
 #[derive(Clone)]
-pub struct MultipurposeRegisters {
+pub struct ReservedeRegisters {
     regs: Vec<Register>
 }
 
-impl MultipurposeRegisters {
+impl ReservedeRegisters {
     pub fn new(scope: &mut Scope) -> CompilerResult<Self> {
-        Ok(MultipurposeRegisters {
-            regs: MultipurposeRegister::enum_iterator().map(|mp_reg| {
+        Ok(ReservedeRegisters {
+            regs: ReservedeRegister::enum_iterator().map(|mp_reg| {
                 match mp_reg {
-                    MultipurposeRegister::BytecodePointer => scope.try_reserve_specific_reg(200),
-                    MultipurposeRegister::RegistersBackup => scope.try_reserve_specific_reg(201),
-                    MultipurposeRegister::__VarinatsCountHelper__ => panic!("MultipurposeRegister::__VarinatsCountHelper__")
+                    ReservedeRegister::BytecodePointer => scope.try_reserve_specific_reg(200),
+                    ReservedeRegister::RegistersBackup => scope.try_reserve_specific_reg(201),
+                    ReservedeRegister::TrashRegister => scope.try_reserve_specific_reg(202),
+                    ReservedeRegister::__VarinatsCountHelper__ => panic!("ReservedeRegister::__VarinatsCountHelper__")
                 }
             }).collect::<CompilerResult<Vec<Register>>>()?
         })
     }
 
-    pub fn reg(&self, mp_reg: &MultipurposeRegister) -> Reg {
+    pub fn reg(&self, mp_reg: &ReservedeRegister) -> Reg {
         self.regs[mp_reg.variant_index()]
     }
 }
@@ -151,24 +153,28 @@ impl MultipurposeRegisters {
 #[derive(Clone)]
 pub struct InstructionSet
 {
-    common_regs: CommonLiteralRegs,
-    multipurpose_regs: MultipurposeRegisters,
+    common_literal_regs: CommonLiteralRegs,
+    reserved_regs: ReservedeRegisters,
 }
 
 impl InstructionSet {
     pub fn default(scope: &mut Scope) -> Self {
         InstructionSet {
-            common_regs: CommonLiteralRegs::new(scope).unwrap(),
-            multipurpose_regs: MultipurposeRegisters::new(scope).unwrap()
+            common_literal_regs: CommonLiteralRegs::new(scope).unwrap(),
+            reserved_regs: ReservedeRegisters::new(scope).unwrap()
         }
     }
 
     pub fn common_lits(&self) -> &CommonLiteralRegs {
-        &self.common_regs
+        &self.common_literal_regs
     }
 
     pub fn common_literal_reg(&self, common_lit: &CommonLiteral) -> Reg {
-        self.common_regs.reg(common_lit)
+        self.common_literal_regs.reg(common_lit)
+    }
+
+    pub fn reserved_reg(&self, common_lit: &ReservedeRegister) -> Reg {
+        self.reserved_regs.reg(common_lit)
     }
 
     pub fn load_op(&self, left: Reg, right: Operand) -> Command {

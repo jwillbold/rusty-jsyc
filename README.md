@@ -36,3 +36,4 @@ There are several test sets in this project:
 ### Current unsoundy properties
  - external member functions are only called correct if the callee expression is a direct member function
  - the 'this' pointer for external non-member functions is simply 'void 0'
+ - Assignment expressions do not return a value, and thus are not really expressions

@@ -3,7 +3,7 @@ use crate::jshelper::{JSSourceCode, JSAst};
 use crate::bytecode::{Bytecode, BytecodeResult};
 use crate::scope::*;
 use crate::bytecode::{*};
-use crate::instruction_set::{InstructionSet, CommonLiteral};
+use crate::instruction_set::{InstructionSet, CommonLiteral, ReservedeRegister};
 
 pub use resast::prelude::*;
 use resast::prelude::Identifier;
@@ -175,7 +175,7 @@ impl BytecodeCompiler {
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> BytecodeResult{
         match stmt {
-            Stmt::Expr(expr) => self.compile_expr(&expr, *self.scopes.get_throwaway_register()?),
+            Stmt::Expr(expr) => self.compile_expr(&expr, self.isa.reserved_reg(&ReservedeRegister::TrashRegister)),
             Stmt::Block(stmts) => stmts.iter().map(|part| self.compile_program_part(part)).collect(),
             Stmt::Empty => Ok(Bytecode::new()),
             Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statments")),
@@ -366,7 +366,7 @@ impl BytecodeCompiler {
             Expr::Ident(ident) => self.compile_identifier_expr(ident, target_reg),
             Expr::Literal(lit) => self.compile_literal_expr(lit, target_reg),
             Expr::Logical(logical) => self.compile_logical_expr(logical, target_reg),
-            Expr::Member(member) => self.compile_member_expr(member, target_reg),
+            Expr::Member(member) => self.compile_member_expr_access(member, target_reg),
             Expr::MetaProperty(_) => Err(CompilerError::are_unsupported("meta properties")),
             Expr::New(_) => Err(CompilerError::are_unsupported("object related expressions (new, this, {})")),
             Expr::Object(_) => Err(CompilerError::are_unsupported("object related expressions (new, this, {})")),
@@ -395,14 +395,28 @@ impl BytecodeCompiler {
     }
 
     fn compile_assignment_expr(&mut self, assign: &AssignmentExpr, _target_reg: Reg) -> BytecodeResult {
-        let (left_bc, left_reg) = match &assign.left {
+        let ((left_bc, left_reg), maybe_prop_reg) = match &assign.left {
             AssignmentLeft::Pat(_) => { return Err(CompilerError::are_unsupported("Patterns in assignments")); },
-            AssignmentLeft::Expr(expr) => self.maybe_compile_expr(&expr, None)?
+            AssignmentLeft::Expr(expr) => match expr.borrow() {
+                Expr::Member(member) => {
+                    let (member_bc, obj_reg, prop_reg) = self.compile_member_expr(member)?;
+                    ((member_bc, obj_reg), Some(prop_reg))
+                },
+                _ => (self.maybe_compile_expr(&expr, None)?, None)
+            }
         };
 
         match assign.operator {
             AssignmentOperator::Equal => {
-                Ok(left_bc.combine(self.compile_expr(assign.right.borrow(), left_reg)?))
+                if let Some(prop_reg) = maybe_prop_reg {
+                    let (value_bc, value_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
+                    Ok(left_bc
+                        .combine(value_bc)
+                        .add(Command::new(Instruction::PropertySet,
+                                vec![Operand::Reg(left_reg), Operand::Reg(prop_reg), Operand::Reg(value_reg)])))
+                } else {
+                    Ok(left_bc.combine(self.compile_expr(assign.right.borrow(), left_reg)?))
+                }
             }
             _ => {
                 let (right_bc, right_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
@@ -506,6 +520,10 @@ impl BytecodeCompiler {
                             Operand::RegistersArray(func.arguments.clone())])))
                 },
                 None => {
+                    for i in 0..self.scopes.scopes.len()-1 {
+                        self.scopes.scopes[i].try_reserve_specific_reg(target_reg)?;
+                    }
+
                     self.decl_dependencies.add_decl_dep(ident.to_string(), target_reg);
                     Ok(Bytecode::new())
                 },
@@ -541,14 +559,24 @@ impl BytecodeCompiler {
 
     }
 
-    fn compile_member_expr(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
+    fn compile_member_expr(&mut self, member: &MemberExpr) -> CompilerResult<(Bytecode, Reg, Reg)> {
         let (obj_bc, obj_reg) = self.maybe_compile_expr(member.object.borrow(), None)?;
-        let (prop_bc, prop_reg) =  match member.property.borrow() {
-            Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(format!("\"{}\"", ident))), None)?,
-            _ => self.maybe_compile_expr(member.property.borrow(), None)?
+        let (prop_bc, prop_reg) = if member.computed {
+            self.maybe_compile_expr(member.property.borrow(), None)?
+        } else {
+            match member.property.borrow() {
+                Expr::Ident(ident) => self.maybe_compile_expr(&Expr::Literal(Literal::String(format!("\"{}\"", ident))), None)?,
+                _ => self.maybe_compile_expr(member.property.borrow(), None)?
+            }
         };
 
-        Ok(obj_bc.combine(prop_bc)
+        Ok((obj_bc.combine(prop_bc), obj_reg, prop_reg))
+    }
+
+    fn compile_member_expr_access(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
+        let (member_bc, obj_reg, prop_reg) = self.compile_member_expr(member)?;
+
+        Ok(member_bc
             .add(Command::new(Instruction::PropAccess, vec![
                     Operand::Reg(target_reg), Operand::Reg(obj_reg), Operand::Reg(prop_reg)
                 ]
@@ -670,7 +698,7 @@ impl BytecodeCompiler {
 
             Ok(finalized_func_bc)
         }).collect::<BytecodeResult>()?;
-        
+
         let mut complete_bytecode = main.combine(functions_bytecode);
 
         // Patch bytecode function argument lists
@@ -687,10 +715,6 @@ impl BytecodeCompiler {
                         "Bytecode function name should be a function address token".into())) }
                 };
 
-                // if let Operand::RegistersArray(arg_regs) = args {
-                //     cmd.operands[2] = Operand::RegistersArray(
-                //         func.arguments.iter().zip(arg_regs.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
-                //     );
                 if let Operand::BytecodeFuncArguments(arg_regs) = args {
                     cmd.operands[2] = Operand::RegistersArray(
                         func.arguments.iter().zip(arg_regs.args.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()

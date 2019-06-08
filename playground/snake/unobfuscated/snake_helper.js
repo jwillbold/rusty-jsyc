@@ -1,19 +1,17 @@
 var canvas = document.getElementById("canvas");
 var ctx = canvas.getContext("2d");
 
+console.log(canvas);
+
 const bh = canvas.height;
 const bw = canvas.width;
 
 const hFieldCount = 50;
 const vFieldCount = 40;
-const fieldLength = bh/vFieldCount
+const fieldLength = bh/vFieldCount;
 
 function rand(min, max) {
   return Math.floor((Math.random() * max) + min);
-}
-
-function max(a, b) {
-  return a >= b ? a : b;
 }
 
 function fillField(x, y, color) {
@@ -39,13 +37,13 @@ const DIRECTION_DOWN = 1;
 const DIRECTION_LEFT = 2;
 const DIRECTION_RIGHT = 3;
 
-var snake_fields =[[hFieldCount/2, vFieldCount/2, DIRECTION_LEFT],
-                  [hFieldCount/2+1, vFieldCount/2, DIRECTION_LEFT],
-                  [hFieldCount/2+2, vFieldCount/2, DIRECTION_LEFT]];
+var snake_fields = [[hFieldCount/2, vFieldCount/2, DIRECTION_LEFT],
+                    [hFieldCount/2+1, vFieldCount/2, DIRECTION_LEFT],
+                    [hFieldCount/2+2, vFieldCount/2, DIRECTION_LEFT]];
 
 var score = 0;
 var snake_direction = DIRECTION_LEFT;
-var updateSpeed = 100;
+var updateSpeed = 800;
 var updater;
 
 function drawGrid() {
@@ -65,7 +63,7 @@ function drawGrid() {
 
 function drawFrame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid();
+  // drawGrid();
 
   for(var i = 0; i<snake_fields.length; ++i) {
     var field = snake_fields[i];
@@ -74,9 +72,9 @@ function drawFrame() {
 
   fillField(apple_x, apple_y, "green");
 
-  if(updater) {
-    requestAnimationFrame(drawFrame);
-  }
+  // if(updater) {
+  //   requestAnimationFrame(drawFrame);
+  // }
 }
 
 function updateTick() {
@@ -89,7 +87,9 @@ function updateTick() {
     var field = snake_fields[i];
 
     if(field[2] != lastDirection) {
-      field[2] = [lastDirection, lastDirection = field[2]][0];
+      let tmp = field[2];
+      field[2] = lastDirection;
+      lastDirection = tmp;
     }
 
     var x = field[0] + dx[field[2]];
@@ -110,7 +110,7 @@ function updateTick() {
     }
 
     if(x < 0 || x >= hFieldCount || y < 0 || y >= vFieldCount || collisionCounter >= 2) {
-      // game over
+      // Game Over
       document.location.reload();
     }
 
@@ -120,6 +120,9 @@ function updateTick() {
   if(newField) {
     snake_fields.push(newField);
   }
+
+  // TODO remove
+  drawFrame();
 }
 
 function startOrContinue() {
@@ -139,6 +142,7 @@ function toggleUpdateLoop() {
 function eventHandler(event) {
   var maybe_current_dir, new_dir;
 
+  console.log(event.key);
   if(event.key == "ArrowLeft") {
     new_dir = DIRECTION_LEFT;
     maybe_current_dir = DIRECTION_RIGHT;
@@ -154,11 +158,12 @@ function eventHandler(event) {
   }
 
   if((maybe_current_dir !== void 0) && (maybe_current_dir != snake_direction)) {
+    console.log("New direction");
     snake_direction = new_dir;
   } else if(event.key == " ") {
     toggleUpdateLoop();
   } else if(event.key == "+") {
-    updateSpeed = max(updateSpeed-10, 20);
+    updateSpeed = updateSpeed-10 >= 20 ? updateSpeed-10 : 20;
     toggleUpdateLoop();
     toggleUpdateLoop();
   }

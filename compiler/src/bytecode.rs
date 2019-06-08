@@ -34,6 +34,7 @@ pub enum Instruction
     Copy,
     Exit,
     BytecodeFuncCallback,
+    PropertySet,
 
     JumpCond,
     Jump,
@@ -81,6 +82,7 @@ impl Instruction {
             Instruction::Jump => 18,
             Instruction::JumpCondNeg => 19,
             Instruction::BytecodeFuncCallback => 20,
+            Instruction::PropertySet => 21,
 
             Instruction::CompEqual => 50,
             Instruction::CompNotEqual => 51,
@@ -117,6 +119,7 @@ impl Instruction {
             Instruction::Jump => "Jump",
             Instruction::JumpCondNeg => "JumpCondNeg",
             Instruction::BytecodeFuncCallback => "BytecodeFuncCallback",
+            Instruction::PropertySet => "PropertySet",
 
             Instruction::CompEqual => "CompEqual",
             Instruction::CompNotEqual => "CompNotEqual",
@@ -481,6 +484,9 @@ fn test_encode_long_num() {
 fn test_encode_float_num() {
     assert_eq!(Operand::FloatNum(0.12345).to_bytes(),
                 vec![63, 191, 154, 107, 80, 176, 242, 124]);
+
+    assert_eq!(Operand::FloatNum(0.5).to_bytes(),
+                vec![0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
     assert_eq!(Operand::FloatNum(-1.1234).to_bytes(),
                 vec![191, 241, 249, 114, 71, 69, 56, 239])
