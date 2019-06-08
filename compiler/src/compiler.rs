@@ -20,6 +20,8 @@ pub struct BytecodeFunction
     // to allow functions using callback to themself.
     bytecode: Option<Bytecode>,
     arguments: Vec<Register>,
+    // Same explanation as above for 'bytecode'
+    used_decls: Option<Vec<Register>>,
 }
 
 #[derive(Clone)]
@@ -104,7 +106,7 @@ impl BytecodeCompiler {
     }
 
     pub fn add_var_decl(&mut self, decl: String) ->  CompilerResult<Reg> {
-        self.scopes.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
+        self.scopes.add_decl(decl, DeclarationType::Variable(MyVariableKind::Var))
     }
 
     pub fn decl_dependencies(&self) -> &DeclDepencies{
@@ -159,7 +161,7 @@ impl BytecodeCompiler {
         decls.iter().map(|decl| {
             match &decl.id {
                 Pat::Identifier(ident) => {
-                    let reg = self.scopes.add_decl(ident.to_string(), DeclarationType::Variable(kind.clone()))?;
+                    let reg = self.scopes.add_decl(ident.to_string(), DeclarationType::Variable(MyVariableKind::from(kind)))?;
                     match &decl.init {
                         Some(expr) => Ok(self.maybe_compile_expr(expr, Some(reg))?.0),
                         None => Ok(Bytecode::new())
@@ -198,6 +200,12 @@ impl BytecodeCompiler {
     }
 
     fn compile_return_stmt(&mut self, ret: &Option<Expr>) -> BytecodeResult {
+        let used_decl_regs: Vec<Reg> = self.scopes.current_scope()?.used_decls.iter()
+                                            .map(|used_decl| used_decl.register).collect();
+
+        println!("Compiling return: {:?}", used_decl_regs);
+
+
         let (bytecode, ret_reg) = match ret {
             Some(ret_expr) => {
                 let (bytecode, ret_reg) = self.maybe_compile_expr(ret_expr, None)?;
@@ -207,7 +215,8 @@ impl BytecodeCompiler {
         };
 
         Ok(bytecode
-            .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(ret_reg)]))
+            .add(Command::new(Instruction::ReturnBytecodeFunc,
+                                vec![Operand::Reg(ret_reg), Operand::RegistersArray(used_decl_regs)]))
         )
     }
 
@@ -509,7 +518,7 @@ impl BytecodeCompiler {
     }
 
     fn compile_identifier_expr(&mut self, ident: &Identifier, target_reg: Reg) -> BytecodeResult {
-        match self.scopes.get_var(&ident) {
+        match self.scopes.get_var(&ident).map(|decl| decl.clone()) {
             Ok(decl) => self.compile_operand_assignment(target_reg, Operand::Reg(decl.register)),
             Err(_) => match self.functions.iter().find(|func| func.ident == *ident) {
                 Some(func) => {
@@ -533,7 +542,8 @@ impl BytecodeCompiler {
 
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
         let operand = Operand::from_literal(BytecodeLiteral::from_lit(lit.clone())?)?;
-        if operand.is_worth_caching() {
+        // if operand.is_worth_caching() {
+        if false {
             self.scopes.add_lit_decl(BytecodeLiteral::from_lit(lit.clone())?, target_reg)?;
         }
 
@@ -637,18 +647,18 @@ impl BytecodeCompiler {
             ident: func_ident,
             bytecode: None,
             arguments: arg_regs,
+            used_decls: None,
         });
 
-        let mut func_bc = func.body.iter().map(|part| self.compile_program_part(&part)).collect::<BytecodeResult>()?;
-
-        self.scopes.leave_current_scope()?;
-
+        let mut func_bc = func.body.iter().map(|part| self.compile_program_part(&part))
+                                   .collect::<BytecodeResult>()?;
 
         if !func_bc.last_op_is_return() {
-            func_bc = func_bc.add(Command::new(Instruction::ReturnBytecodeFunc,
-                                    vec![Operand::Reg(
-                                            self.isa.common_literal_reg(&CommonLiteral::Void0))]));
+            func_bc = func_bc.combine(self.compile_return_stmt(&None)?)
         }
+
+        let func_scope = self.scopes.leave_current_scope()?;
+        let used_decls = func_scope.used_decls.into_iter().map(|used_decl| used_decl.register).collect();
 
         // It is save to unwrap here since it was definitly pushed above
         let phantom_func = self.functions.pop().unwrap();
@@ -656,6 +666,7 @@ impl BytecodeCompiler {
             ident: phantom_func.ident,
             bytecode: Some(func_bc),
             arguments: phantom_func.arguments,
+            used_decls: Some(used_decls)
         });
 
         Ok(Bytecode::new())
@@ -686,8 +697,6 @@ impl BytecodeCompiler {
     fn finalize_function_bytescodes(&self, main: Bytecode) -> BytecodeResult {
         let mut functions_and_offsets: HashMap<String, (usize, &BytecodeFunction)> = HashMap::new();
         let mut offset_counter = main.length_in_bytes();
-
-        println!("main length: 0x{:x}",offset_counter);
 
         let functions_bytecode = self.functions.iter().map(|func| -> BytecodeResult {
             functions_and_offsets.insert(func.ident.to_string(), (offset_counter, func));

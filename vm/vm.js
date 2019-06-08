@@ -141,8 +141,11 @@ class VM {
       var argsArray = vm._loadRegistersArray();
       vm.reg_backups.push([vm.regs.slice(), returnReg]);
 
+      console.log("Calling function, args: ", argsArray);
+
       for(let i = 0; i < argsArray.length; i+=2) {
         vm.setReg(argsArray[i], vm.getReg(argsArray[i+1]));
+        console.log(argsArray[i], "<-", vm.getReg(argsArray[i+1]));
       }
 
       vm.setReg(REGS.STACK_PTR, funcOffset);
@@ -150,15 +153,18 @@ class VM {
 
     this.ops[OP.RETURN_BCFUNC] = function(vm) {
       var returnFromReg = vm.getByte();
+      var exceptedRegs = vm._loadRegistersArray();
       var returnData = vm.reg_backups.pop();
       var regBackups = returnData[0];
       let returnToReg = returnData[1];
 
       regBackups[returnToReg] = vm.getReg(returnFromReg);
 
-      // vm.regs = regBackups;
-      vm.setReg(REGS.STACK_PTR, regBackups[REGS.STACK_PTR]);
-      vm.setReg(returnToReg, vm.getReg(returnFromReg));
+      for(let exceptedReg of exceptedRegs) {
+        regBackups[exceptedReg] = vm.getReg(exceptedReg);
+      }
+
+      vm.regs = regBackups;
     }
 
     this.ops[OP.COPY] = function(vm) {
@@ -307,6 +313,7 @@ class VM {
     while(this.regs[REGS.STACK_PTR] < this.stack.length) {
       var op_code = this.getByte();
       var op = this.ops[op_code];
+
       try {
         op(this);
       } catch(e) {
@@ -314,7 +321,6 @@ class VM {
         throw e;
       }
     }
-
     return this.regs[REGS.RETURN_VAL];
   }
 

@@ -65,24 +65,24 @@ fn test_compile_js_decls() {
 
     run_test("function foo() {}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
     run_test("function foo(a) {}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
     run_test("function foo(a, b) {}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
     run_test("function foo(a) {return a;}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0), Operand::RegistersArray(vec![])]))
     );
     run_test("function foo(a, b) {a+=b; return a;}", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(1)]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0), Operand::RegistersArray(vec![])]))
     );
 
     run_test_deps("var a = document.cookie;", &["document"], Bytecode::new()

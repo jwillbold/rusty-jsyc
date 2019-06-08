@@ -8,10 +8,27 @@ use crate::error::{CompilerError, CompilerResult};
 pub type Register = u8;
 pub type Reg = Register;
 
+// A reimplementantion of resast::prelude::VaribaleKind to derive the HashMap, PartialEq and Eq trait
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum MyVariableKind {
+    Var,
+    Let,
+    Const
+}
 
-#[derive(Debug, Clone)]
+impl From<&VariableKind> for MyVariableKind {
+    fn from(var_kind: &VariableKind) -> Self {
+        match var_kind {
+            VariableKind::Var => MyVariableKind::Var,
+            VariableKind::Let => MyVariableKind::Let,
+            VariableKind::Const => MyVariableKind::Const,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum DeclarationType {
-    Variable(VariableKind),
+    Variable(MyVariableKind),
     Function,
     Literal,
     // Intermediate
@@ -19,7 +36,7 @@ pub enum DeclarationType {
 
 pub type DeclType = DeclarationType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Declaration
 {
     pub register: Register,
@@ -30,22 +47,28 @@ pub struct Declaration
 #[derive(Debug, Clone)]
 pub struct Scope
 {
-    pub decls: HashMap<String, Declaration>,
-    pub unused_register: VecDeque<Register>,
+    decls: HashMap<String, Declaration>,
+    new_decls: HashSet<String>,
+    unused_register: VecDeque<Register>,
+    pub used_decls: HashSet<Declaration>
 }
 
 impl Scope {
     pub fn new() -> Self {
         Scope {
             decls: HashMap::new(),
+            new_decls: HashSet::new(),
             unused_register: (0..(Register::max_value() as u16 + 1)).map(|reg: u16| reg as u8).collect(),
+            used_decls: HashSet::new()
         }
     }
 
     pub fn derive_scope(parent_scope: &Scope) -> Result<Self, CompilerError> {
         Ok(Scope {
             decls: parent_scope.decls.clone(),
-            unused_register: parent_scope.unused_register.clone()
+            new_decls: HashSet::new(),
+            unused_register: parent_scope.unused_register.clone(),
+            used_decls: HashSet::new()
         })
     }
 
@@ -82,13 +105,28 @@ impl Scope {
         }
     }
 
-    pub fn add_decl(&mut self, decl: String, decl_type: DeclarationType) -> Result<Register, CompilerError> {
+    pub fn add_decl(&mut self, decl_name: String, decl_type: DeclarationType) -> Result<Register, CompilerError> {
         let unused_reg = self.get_unused_register()?;
-        self.decls.insert(decl, Declaration {
+        self.decls.insert(decl_name.clone(), Declaration {
             register: unused_reg,
             decl_type: decl_type
         });
+        self.new_decls.insert(decl_name);
         Ok(unused_reg)
+    }
+
+    pub fn get_decl(&mut self, decl_name: &str) -> CompilerResult<&Declaration> {
+        let decl = self.decls.get(decl_name).ok_or(
+            CompilerError::Custom(format!("The declaration '{}' does not exist", decl_name))
+        )?;
+
+        println!("Scope::get_decl: {}", decl_name);
+
+        if !self.new_decls.contains(decl_name) {
+            println!("Inserting....");
+            self.used_decls.insert(decl.clone());
+        }
+        Ok(decl)
     }
 
     pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {
@@ -141,7 +179,7 @@ impl Scopes
     }
 
     pub fn add_var_decl(&mut self, decl: String) -> CompilerResult<Register> {
-        self.add_decl(decl, DeclarationType::Variable(VariableKind::Var))
+        self.add_decl(decl, DeclarationType::Variable(MyVariableKind::Var))
     }
 
     pub fn add_decl(&mut self, decl: String, decl_type: DeclarationType) -> CompilerResult<Register> {
@@ -161,10 +199,8 @@ impl Scopes
         self.current_scope()?.get_throwaway_register()
     }
 
-    pub fn get_var(&self, var_name: &str) -> Result<&Declaration, CompilerError> {
-        self.current_scope()?.decls.get(var_name).ok_or(
-            CompilerError::Custom(format!("The declaration '{}' does not exist", var_name))
-        )
+    pub fn get_var(&mut self, var_name: &str) -> CompilerResult<&Declaration> {
+        self.current_scope_mut()?.get_decl(var_name)
     }
 
     pub fn get_lit_decl(&self, literal: &BytecodeLiteral) -> CompilerResult<&Declaration> {
@@ -178,7 +214,7 @@ impl Scopes
     }
 
     pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
-        // Ok(self.scopes.push(Scope::derive_scope(self.current_scope()?)?))
+        self.scopes.push(Scope::derive_scope(self.current_scope()?)?);
         Ok(())
     }
 
@@ -194,11 +230,13 @@ impl Scopes
         )
     }
 
-    pub fn leave_current_scope(&mut self) -> Result<(), CompilerError> {
-        // let _scope = self.scopes.pop().ok_or(
-        //     CompilerError::Custom("Cannot leave inexisting scope".into())
-        // )?;
-        Ok(())
+    pub fn leave_current_scope(&mut self) -> Result<Scope, CompilerError> {
+        let scope = self.scopes.pop().ok_or(
+            CompilerError::Custom("Cannot leave inexisting scope".into())
+        )?;
+        self.current_scope_mut()?.used_decls.extend(scope.used_decls.iter().cloned());
+
+        Ok(scope)
     }
 }
 

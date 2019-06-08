@@ -20,8 +20,8 @@ function fillField(x, y, color) {
   ctx.closePath();
 }
 
-var apple_x;
-var apple_y;
+var apple_x = void 0;
+var apple_y = void 0;
 
 function spawnNewApple() {
   apple_x = rand(0, hFieldCount-1);
@@ -135,7 +135,6 @@ function toggleUpdateLoop() {
 function eventHandler(event) {
   var maybe_current_dir = void 0, new_dir;
 
-  console.log(event.key);
   if(event.key == "ArrowLeft") {
     new_dir = DIRECTION_LEFT;
     maybe_current_dir = DIRECTION_RIGHT;
@@ -150,9 +149,7 @@ function eventHandler(event) {
     maybe_current_dir = DIRECTION_UP;
   }
 
-  console.log("New maybe_current_dir: ", maybe_current_dir, snake_direction);
   if((maybe_current_dir !== void 0) && (maybe_current_dir != snake_direction)) {
-    console.log("New direction");
     snake_direction = new_dir;
   } else if(event.key == " ") {
     toggleUpdateLoop();
@@ -165,6 +162,4 @@ function eventHandler(event) {
 
 document.addEventListener("keydown", eventHandler, false);
 
-// startOrContinue();
-
-updateTick();
+startOrContinue();
