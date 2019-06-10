@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.com/jwillbold/rusty-jsyc.svg?token=hPh87VpFt3MQPwdySdkS&branch=master)](https://travis-ci.com/jwillbold/rusty-jsyc)
+[![Codecov coverage status](https://codecov.io/gh/jwillbold/rusty-jsyc/branch/master/graph/badge.svg)](https://codecov.io/gh/jwillbold/rusty-jsyc)
 
 # Rusty-JSYC
 
