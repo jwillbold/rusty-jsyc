@@ -120,10 +120,7 @@ impl Scope {
             CompilerError::Custom(format!("The declaration '{}' does not exist", decl_name))
         )?;
 
-        println!("Scope::get_decl: {}", decl_name);
-
         if !self.new_decls.contains(decl_name) {
-            println!("Inserting....");
             self.used_decls.insert(decl.clone());
         }
         Ok(decl)
@@ -142,7 +139,7 @@ impl Scope {
 #[derive(Debug, Clone)]
 pub struct Scopes
 {
-    // TODO: It is not trivial to derive the Hash trait from resast::Literal,
+    // TODO: It is not trivial to derive the Hash trait from BytecodeLiteral (because of f64),
     // and thus, it cannot be easily used in HashMap. However, this would be
     // a better choice.
     // pub literals_cache: HashMap<BytecodeLiteral, Declaration>,

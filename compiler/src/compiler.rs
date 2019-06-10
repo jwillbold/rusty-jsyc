@@ -500,8 +500,6 @@ impl BytecodeCompiler {
             self.maybe_compile_expr(arg_expr, None)
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
-        // self.current_function()?.function_calls.push(func);
-
         Ok(args_bytecode.into_iter().collect::<Bytecode>()
             .add(Command::new(Instruction::CallBytecodeFunc,
                                 vec![Operand::function_addr(func),
@@ -751,7 +749,7 @@ impl BytecodeCompiler {
         for cmd in complete_bytecode.commands_iter_mut() {
             for op in cmd.operands.iter_mut() {
                 if let Operand::FunctionAddr(token) = op {
-                    *op = Operand::LongNum(functions_and_offsets.get(&token.ident).map(|x| {println!("Patching {} -> 0x{:x}", token.ident, x.0); x}).ok_or(
+                    *op = Operand::LongNum(functions_and_offsets.get(&token.ident).ok_or(
                         CompilerError::Custom(format!("Found unknown function ident {}", token.ident))
                     )?.0 as i32);
                 }

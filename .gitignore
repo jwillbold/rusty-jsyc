@@ -94,3 +94,4 @@ Cargo.lock
 **/.compiled/*
 !**/.compiled/readme
 **/obfuscated/*
+*.local.*

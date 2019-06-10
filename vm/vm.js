@@ -77,6 +77,7 @@ class VM {
     this.stack = [];
     this.ops = [];
     this.reg_backups = [];
+    this.modified_regs = [];
 
     this.ops[OP.LOAD_STRING] = function(vm) {
       var dst = vm.getByte(), str = vm._loadString();
@@ -141,11 +142,8 @@ class VM {
       var argsArray = vm._loadRegistersArray();
       vm.reg_backups.push([vm.regs.slice(), returnReg]);
 
-      console.log("Calling function, args: ", argsArray);
-
       for(let i = 0; i < argsArray.length; i+=2) {
         vm.setReg(argsArray[i], vm.getReg(argsArray[i+1]));
-        console.log(argsArray[i], "<-", vm.getReg(argsArray[i+1]));
       }
 
       vm.setReg(REGS.STACK_PTR, funcOffset);
@@ -158,10 +156,16 @@ class VM {
       var regBackups = returnData[0];
       let returnToReg = returnData[1];
 
+      vm.modified_regs = [...new Set([...vm.modified_regs, ...exceptedRegs])];
+
       regBackups[returnToReg] = vm.getReg(returnFromReg);
 
-      for(let exceptedReg of exceptedRegs) {
+      for(let exceptedReg of vm.modified_regs) {
         regBackups[exceptedReg] = vm.getReg(exceptedReg);
+      }
+
+      if(!vm.reg_backups.length) {
+        vm.modified_regs = [];
       }
 
       vm.regs = regBackups;
