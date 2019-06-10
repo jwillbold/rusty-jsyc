@@ -1,9 +1,10 @@
-extern crate compiler;
-use compiler::*;
+extern crate jsyc_compiler;
+use jsyc_compiler::*;
 use jshelper::{JSSourceCode};
 
+
 #[cfg(test)]
-fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc: compiler::Bytecode) {
+fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc: Bytecode) {
     let js_source = JSSourceCode {
         source_code: js_code.to_string()
     };
@@ -12,7 +13,7 @@ fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc
 }
 
 #[cfg(test)]
-fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: compiler::Bytecode) {
+fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: Bytecode) {
     let mut compiler = BytecodeCompiler::new();
     let js_source = JSSourceCode {
         source_code: js_code.to_string()
@@ -25,7 +26,6 @@ fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: compil
     }
 }
 
-
 #[cfg(test)]
 fn check_is_error(js_code: &str, mut compiler: compiler::BytecodeCompiler) {
     let js_source = JSSourceCode {
@@ -34,6 +34,7 @@ fn check_is_error(js_code: &str, mut compiler: compiler::BytecodeCompiler) {
 
     assert!(compiler.compile(&js_source).is_err());
 }
+
 
 #[test]
 fn test_compiler_api() {
@@ -99,56 +100,64 @@ fn test_compile_js_decls() {
 #[test]
 fn test_bytecode_func_calls() {
     run_test("function test() {}; test();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(8), Operand::Reg(0), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(8), Operand::Reg(202), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
 
     run_test("function foo() {}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::Reg(0), Operand::RegistersArray(vec![])]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(17), Operand::Reg(0), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::Reg(202), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(18), Operand::Reg(202), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
 
     run_test("function foo() {var a = 5;}; function bar() {}; foo();bar();", BytecodeCompiler::new(), Bytecode::new()
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::Reg(0), Operand::RegistersArray(vec![])]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(20), Operand::Reg(0), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(15), Operand::Reg(202), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(21), Operand::Reg(202), Operand::RegistersArray(vec![])]))
         .add(Command::new(Instruction::Exit, vec![]))
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(5)]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
+    );
+
+    run_test("var a = 5; function foo() {a = 10;}; foo();", BytecodeCompiler::new(), Bytecode::new()
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(5)]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(11), Operand::Reg(202), Operand::RegistersArray(vec![])]))
+        .add(Command::new(Instruction::Exit, vec![]))
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![0])]))
     );
 
     run_test("function testy(a) {} testy(10);", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(0), Operand::RegistersArray(vec![0, 0])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(202), Operand::RegistersArray(vec![0, 0])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(253), Operand::RegistersArray(vec![])]))
     );
 
     run_test("function testy(a) {return a;} testy(10);", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(0), Operand::RegistersArray(vec![0, 0])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(202), Operand::RegistersArray(vec![0, 0])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0), Operand::RegistersArray(vec![])]))
     );
 
     run_test("var x = 10; function testy(a) {return a;} testy(x);", BytecodeCompiler::new(), Bytecode::new()
         .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(10)]))
-        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(1), Operand::RegistersArray(vec![1, 0])]))
+        .add(Command::new(Instruction::CallBytecodeFunc, vec![Operand::LongNum(13), Operand::Reg(202), Operand::RegistersArray(vec![1, 0])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(1)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(1), Operand::RegistersArray(vec![])]))
     );
 
-    run_test_deps("function testy(a) {return a;}; setInterval(testy, 60);", &["setInterval"], Bytecode::new()
-        .add(Command::new(Instruction::BytecodeFuncCallback, vec![Operand::Reg(1), Operand::LongNum(19), Operand::RegistersArray(vec![0])]))
-        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(2), Operand::ShortNum(60)]))
-        .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(0), Operand::Reg(0),
-                                                      Operand::Reg(253), Operand::RegistersArray(vec![1, 2])]))
+    run_test_deps("function testy(a) {return a;}; var interval = setInterval(testy, 60);", &["setInterval"], Bytecode::new()
+        .add(Command::new(Instruction::BytecodeFuncCallback, vec![Operand::Reg(2), Operand::LongNum(19), Operand::RegistersArray(vec![0])]))
+        .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(3), Operand::ShortNum(60)]))
+        .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(0), Operand::Reg(1),
+                                                      Operand::Reg(253), Operand::RegistersArray(vec![2, 3])]))
         .add(Command::new(Instruction::Exit, vec![]))
-        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0)]))
+        .add(Command::new(Instruction::ReturnBytecodeFunc, vec![Operand::Reg(0), Operand::RegistersArray(vec![])]))
     );
 }
 
@@ -276,11 +285,11 @@ fn test_member_expr() {
                 .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("test".into())]))
                 .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(2)])));
 
-    // TODO: The second LoadString can be eleiminated check the Expr::Member_Expr::Ident&Expr::Ident code branch in maybe_compile_expr
     run_test("var t = document.test; var a = document.test", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("test".into())]))
                 .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(2)]))
-                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(3), Operand::Reg(0), Operand::Reg(2)])));
+                .add(Command::new(Instruction::LoadString, vec![Operand::Reg(4), Operand::String("test".into())]))
+                .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(3), Operand::Reg(0), Operand::Reg(4)])));
 
     // Assignment expression 'equal'
     let mut assignments_compiler = BytecodeCompiler::new();
@@ -324,29 +333,35 @@ fn test_compile_js_func_call() {
     assert!(compiler.add_var_decl("test".into()).is_ok());
 
     run_test("test();", compiler.clone(), Bytecode::new()
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0),
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(0),
                                                               Operand::Reg(253), Operand::RegistersArray(vec![])]))
             );
 
     run_test("test(1);", compiler.clone(), Bytecode::new()
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0),
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(0),
                                                               Operand::Reg(253),Operand::RegistersArray(vec![254])]))
             );
 
     run_test("test(10);test(10);", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(10)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0),
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(0),
                                                               Operand::Reg(253),Operand::RegistersArray(vec![1])]))
                 .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(2), Operand::ShortNum(10)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(2), Operand::Reg(0),
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(0),
                                                               Operand::Reg(253),Operand::RegistersArray(vec![2])]))
             );
 
-    run_test("test(1, 20);", compiler, Bytecode::new()
+    run_test("test(1, 20);", compiler.clone(), Bytecode::new()
                 .add(Command::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(20)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0),
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(0),
                                                               Operand::Reg(253),Operand::RegistersArray(vec![254, 1])]))
             );
+
+    run_test("var a = test(1);", compiler.clone(), Bytecode::new()
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(0),
+                                                              Operand::Reg(253),Operand::RegistersArray(vec![254])]))
+            );
+
 
 
     let mut compiler_doc = BytecodeCompiler::new();
@@ -356,6 +371,6 @@ fn test_compile_js_func_call() {
     run_test("document.test();", compiler_doc, Bytecode::new()
                 .add(Command::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("test".into())]))
                 .add(Command::new(Instruction::PropAccess, vec![Operand::Reg(1), Operand::Reg(0), Operand::Reg(2)]))
-                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(1), Operand::Reg(1), Operand::Reg(0), Operand::RegistersArray(vec![])]))
+                .add(Command::new(Instruction::CallFunc, vec![Operand::Reg(202), Operand::Reg(1), Operand::Reg(0), Operand::RegistersArray(vec![])]))
             );
 }

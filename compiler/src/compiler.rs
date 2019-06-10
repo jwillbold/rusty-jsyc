@@ -561,8 +561,8 @@ impl BytecodeCompiler {
 
     fn compile_literal_expr(&mut self, lit: &Literal, target_reg: Reg) -> BytecodeResult {
         let operand = Operand::from_literal(BytecodeLiteral::from_lit(lit.clone())?)?;
-        // if operand.is_worth_caching() {
-        if false {
+        // This feature is currenlty disabled
+        if false { // operand.is_worth_caching()
             self.scopes.add_lit_decl(BytecodeLiteral::from_lit(lit.clone())?, target_reg)?;
         }
 

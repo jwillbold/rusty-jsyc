@@ -63,7 +63,7 @@ impl Scope {
         }
     }
 
-    pub fn derive_scope(parent_scope: &Scope) -> Result<Self, CompilerError> {
+    pub fn derive_scope(parent_scope: &Scope) -> CompilerResult<Self> {
         Ok(Scope {
             decls: parent_scope.decls.clone(),
             new_decls: HashSet::new(),
@@ -73,19 +73,19 @@ impl Scope {
     }
 
     // TODO: is this still required?
-    pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
+    pub fn get_throwaway_register(&self) -> CompilerResult<&Register> {
         self.unused_register.front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
         )
     }
 
-    pub fn get_unused_register(&mut self) -> Result<Register, CompilerError> {
+    pub fn get_unused_register(&mut self) -> CompilerResult<Register> {
         self.unused_register.pop_front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers".into())
         )
     }
 
-    pub fn get_unused_register_back(&mut self) -> Result<Register, CompilerError> {
+    pub fn get_unused_register_back(&mut self) -> CompilerResult<Register> {
         self.unused_register.pop_back().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers".into())
         )
@@ -105,7 +105,7 @@ impl Scope {
         }
     }
 
-    pub fn add_decl(&mut self, decl_name: String, decl_type: DeclarationType) -> Result<Register, CompilerError> {
+    pub fn add_decl(&mut self, decl_name: String, decl_type: DeclarationType) -> CompilerResult<Register> {
         let unused_reg = self.get_unused_register()?;
         self.decls.insert(decl_name.clone(), Declaration {
             register: unused_reg,
@@ -126,11 +126,11 @@ impl Scope {
         Ok(decl)
     }
 
-    pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {
+    pub fn reserve_register(&mut self) -> CompilerResult<Register> {
         self.get_unused_register()
     }
 
-    pub fn reserve_register_back(&mut self) -> Result<Register, CompilerError> {
+    pub fn reserve_register_back(&mut self) -> CompilerResult<Register> {
         self.get_unused_register_back()
     }
 }
@@ -183,16 +183,16 @@ impl Scopes
         self.current_scope_mut()?.add_decl(decl, decl_type)
     }
 
-    pub fn reserve_register(&mut self) -> Result<Register, CompilerError> {
+    pub fn reserve_register(&mut self) -> CompilerResult<Register> {
         self.current_scope_mut()?.reserve_register()
     }
 
-    pub fn reserve_register_back(&mut self) -> Result<Register, CompilerError> {
+    pub fn reserve_register_back(&mut self) -> CompilerResult<Register> {
         self.current_scope_mut()?.reserve_register_back()
     }
 
     // TODO: is this still required?
-    pub fn get_throwaway_register(&self) -> Result<&Register, CompilerError> {
+    pub fn get_throwaway_register(&self) -> CompilerResult<&Register> {
         self.current_scope()?.get_throwaway_register()
     }
 
@@ -210,28 +210,31 @@ impl Scopes
         }
     }
 
-    pub fn enter_new_scope(&mut self) -> Result<(), CompilerError> {
+    pub fn enter_new_scope(&mut self) -> CompilerResult<()> {
         self.scopes.push(Scope::derive_scope(self.current_scope()?)?);
         Ok(())
     }
 
-    pub fn current_scope(&self) -> Result<&Scope, CompilerError> {
+    pub fn current_scope(&self) -> CompilerResult<&Scope> {
         self.scopes.last().ok_or(
             CompilerError::Custom("No current scope".into())
         )
     }
 
-    pub fn current_scope_mut(&mut self) -> Result<&mut Scope, CompilerError> {
+    pub fn current_scope_mut(&mut self) -> CompilerResult<&mut Scope> {
         self.scopes.last_mut().ok_or(
             CompilerError::Custom("No current (mut) scope".into())
         )
     }
 
-    pub fn leave_current_scope(&mut self) -> Result<Scope, CompilerError> {
+    pub fn leave_current_scope(&mut self) -> CompilerResult<Scope> {
         let scope = self.scopes.pop().ok_or(
             CompilerError::Custom("Cannot leave inexisting scope".into())
         )?;
-        self.current_scope_mut()?.used_decls.extend(scope.used_decls.iter().cloned());
+
+        if let Ok(current_scope) = self.current_scope_mut() {
+            current_scope.used_decls.extend(scope.used_decls.iter().cloned());
+        }
 
         Ok(scope)
     }
