@@ -181,7 +181,6 @@ pub struct FunctionArguments {
 impl ToBytes for FunctionArguments {
     fn to_bytes(&self) -> Vec<u8> {
         vec![0; self.args.len()]
-        // Operand::encode_registers_array(&regs)
     }
 
     fn length_in_bytes(&self) -> usize {
@@ -610,7 +609,7 @@ impl Bytecode {
         self
     }
 
-    pub fn combine(mut self, mut other: Bytecode) -> Self {
+    pub fn add_bytecode(mut self, mut other: Bytecode) -> Self {
         self.elements.append(&mut other.elements);
         self
     }

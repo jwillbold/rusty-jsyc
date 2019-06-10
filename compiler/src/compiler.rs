@@ -101,8 +101,7 @@ impl DeclDepencies {
 
 
 #[derive(Clone)]
-pub struct BytecodeCompiler
-{
+pub struct BytecodeCompiler {
     scopes: Scopes,
     // This is not a hashmap but a vector only to make tetsing easier
     // functions: HashMap<Identifier, BytecodeFunction>,
@@ -176,8 +175,8 @@ impl BytecodeCompiler {
 
     fn compile_var_decl(&mut self, kind: &VariableKind, decls: &[VariableDecl]) -> BytecodeResult {
         match kind {
-            VariableKind::Let => { warn!("'let' will be treated as 'var'"); }
-            VariableKind::Const => { info!("'const' will be treated as 'var'"); }
+            VariableKind::Let => { println!("Warning: 'let' will be treated as 'var'", ); }
+            VariableKind::Const => { println!("Info: 'const' will be treated as 'var'"); }
             _ => {}
         }
 
@@ -250,7 +249,7 @@ impl BytecodeCompiler {
 
         let bytecode = test_bytecode
                 .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
-                .combine(if_branch_bc);
+                .add_bytecode(if_branch_bc);
 
         if let Some(else_branch) = if_stmt.alternate.borrow() {
             let else_branch_bc = self.compile_stmt(&else_branch.borrow())?;
@@ -258,7 +257,7 @@ impl BytecodeCompiler {
             Ok(bytecode
                 .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(else_branch_end_label)]))
                 .add_label(if_branch_end_label)
-                .combine(else_branch_bc)
+                .add_bytecode(else_branch_bc)
                 .add_label(else_branch_end_label)
             )
         } else {
@@ -277,7 +276,7 @@ impl BytecodeCompiler {
         Ok(test_bc
             .add_label(while_cond_label)
             .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
-            .combine(self.compile_stmt(while_stmt.body.borrow())?)
+            .add_bytecode(self.compile_stmt(while_stmt.body.borrow())?)
             .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(while_cond_label)]))
             .add_label(while_end_label))
     }
@@ -290,8 +289,8 @@ impl BytecodeCompiler {
 
         Ok(Bytecode::new()
             .add_label(dowhile_start_label)
-            .combine(body_bc)
-            .combine(test_bc)
+            .add_bytecode(body_bc)
+            .add_bytecode(test_bc)
             .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)])))
     }
 
@@ -326,9 +325,9 @@ impl BytecodeCompiler {
 
         Ok(init_bc
             .add_label(loop_start_label)
-            .combine(test_bc)
-            .combine(body_bc)
-            .combine(update_bc)
+            .add_bytecode(test_bc)
+            .add_bytecode(body_bc)
+            .add_bytecode(update_bc)
             .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(loop_start_label)]))
             .add_label(loop_end_label))
     }
@@ -440,16 +439,16 @@ impl BytecodeCompiler {
                 if let Some(prop_reg) = maybe_prop_reg {
                     let (value_bc, value_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
                     Ok(left_bc
-                        .combine(value_bc)
+                        .add_bytecode(value_bc)
                         .add(Command::new(Instruction::PropertySet,
                                 vec![Operand::Reg(left_reg), Operand::Reg(prop_reg), Operand::Reg(value_reg)])))
                 } else {
-                    Ok(left_bc.combine(self.compile_expr(assign.right.borrow(), left_reg)?))
+                    Ok(left_bc.add_bytecode(self.compile_expr(assign.right.borrow(), left_reg)?))
                 }
             }
             _ => {
                 let (right_bc, right_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
-                Ok(left_bc.combine(right_bc)
+                Ok(left_bc.add_bytecode(right_bc)
                     .add(self.isa.assignment_op(&assign.operator, left_reg, right_reg)))
             }
         }
@@ -460,7 +459,7 @@ impl BytecodeCompiler {
         let (right_bc, right_reg) = self.maybe_compile_expr(bin.right.borrow(), None)?;
 
         Ok(left_bc
-            .combine(right_bc)
+            .add_bytecode(right_bc)
             .add(self.isa.binary_op(&bin.operator, target_reg, left_reg, right_reg)?)
         )
     }
@@ -488,10 +487,10 @@ impl BytecodeCompiler {
 
         Ok(test_bc
             .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(after_alt_label)]))
-            .combine(consequent_bc)
+            .add_bytecode(consequent_bc)
             .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(after_cons_label)]))
             .add_label(after_alt_label)
-            .combine(alt_bc)
+            .add_bytecode(alt_bc)
             .add_label(after_cons_label))
     }
 
@@ -522,8 +521,8 @@ impl BytecodeCompiler {
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
         Ok(bytecode.into_iter().collect::<Bytecode>()
-            .combine(callee_bc)
-            .combine(callee_this_bc)
+            .add_bytecode(callee_bc)
+            .add_bytecode(callee_this_bc)
             .add(Command::new(Instruction::CallFunc, vec![
                     Operand::Reg(target_reg),
                     Operand::Reg(callee_reg),
@@ -579,11 +578,11 @@ impl BytecodeCompiler {
         match logical.operator {
             LogicalOperator::And => Ok(left_bc
                 .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
-                .combine(right_bc)
+                .add_bytecode(right_bc)
                 .add_label(after_right_label)),
             LogicalOperator::Or => Ok(left_bc
                 .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
-                .combine(right_bc)
+                .add_bytecode(right_bc)
                 .add_label(after_right_label))
         }
 
@@ -600,7 +599,7 @@ impl BytecodeCompiler {
             }
         };
 
-        Ok((obj_bc.combine(prop_bc), obj_reg, prop_reg))
+        Ok((obj_bc.add_bytecode(prop_bc), obj_reg, prop_reg))
     }
 
     fn compile_member_expr_access(&mut self, member: &MemberExpr, target_reg: Reg) -> BytecodeResult {
@@ -628,7 +627,7 @@ impl BytecodeCompiler {
                 let (arg_bc, _) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
                 let void0_reg = self.isa.common_literal_reg(&CommonLiteral::Void0);
                 Ok(arg_bc
-                    .combine(self.compile_operand_assignment(target_reg, Operand::Reg(void0_reg))?))
+                    .add_bytecode(self.compile_operand_assignment(target_reg, Operand::Reg(void0_reg))?))
             } else {
                 let (arg_bc, arg_reg) = self.maybe_compile_expr(unary.argument.borrow(), None)?;
                 Ok(arg_bc.add(self.isa.unary_op(&unary.operator, target_reg, arg_reg)?))
@@ -669,7 +668,7 @@ impl BytecodeCompiler {
                                    .collect::<BytecodeResult>()?;
 
         if !func_bc.last_op_is_return() {
-            func_bc = func_bc.combine(self.compile_return_stmt(&None)?)
+            func_bc = func_bc.add_bytecode(self.compile_return_stmt(&None)?)
         }
 
         let func_scope = self.scopes.leave_current_scope()?;
@@ -718,7 +717,7 @@ impl BytecodeCompiler {
             Ok(finalized_func_bc)
         }).collect::<BytecodeResult>()?;
 
-        let mut complete_bytecode = main.combine(functions_bytecode);
+        let mut complete_bytecode = main.add_bytecode(functions_bytecode);
 
         // Patch bytecode function argument lists
         for cmd in complete_bytecode.commands_iter_mut() {

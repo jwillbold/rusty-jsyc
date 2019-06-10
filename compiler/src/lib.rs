@@ -1,10 +1,6 @@
-#[warn(unused_imports)]
-
 extern crate ressa;
 extern crate resast;
 extern crate base64;
-#[macro_use]
-extern crate log;
 
 pub mod error;
 pub mod bytecode;

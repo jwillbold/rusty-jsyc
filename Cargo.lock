@@ -126,7 +126,6 @@ name = "compiler"
 version = "0.1.0"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "resast 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ressa 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

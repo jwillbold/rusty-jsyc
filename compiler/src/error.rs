@@ -24,21 +24,26 @@ impl CompilerError {
 
 impl std::fmt::Display for CompilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "TO{0}", "DO")
+        match self {
+            CompilerError::Parser(ressa_error) => write!(f, "{}", ressa_error),
+            CompilerError::Unsupported(string) |
+            CompilerError::Custom(string) => write!(f, "{}", string)
+        }
     }
 }
 
 impl std::error::Error for CompilerError {
     fn description(&self) -> &str {
         match *self {
-            CompilerError::Parser(_) => unimplemented!("RessaError handling"),
+            CompilerError::Parser(_) => "An error during the parsing process",
             CompilerError::Unsupported(ref s) |
             CompilerError::Custom(ref s) => s.as_str(),
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        match *self {
+        match self {
+            // CompilerError::Parser(ressa_error) => Some(&ressa_error)
             _ => None
         }
     }
