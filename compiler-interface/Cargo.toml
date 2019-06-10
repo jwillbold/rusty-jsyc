@@ -10,7 +10,7 @@ license = "LGPL-3.0-only"
 path = "../compiler"
 
 [dev-dependencies]
-test-exec = "0.1.0"
+assert_cmd = "0.11.1"
 
 [dependencies]
 resw = "0.2.2"
