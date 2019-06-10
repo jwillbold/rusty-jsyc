@@ -1,6 +1,6 @@
 use crate::errors::{CompositionError, CompositionResult};
 
-use compiler::{Bytecode, JSSourceCode, JSAst, DeclDepencies};
+use jsyc_compiler::{Bytecode, JSSourceCode, JSAst, DeclDepencies};
 use resast::prelude::*;
 
 

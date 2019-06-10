@@ -1,4 +1,4 @@
-extern crate compiler;
+extern crate jsyc_compiler;
 extern crate resw;
 extern crate resast;
 extern crate ressa;
@@ -9,7 +9,7 @@ mod errors;
 
 use std::io::Read;
 use std::fs;
-use compiler::{JSSourceCode, BytecodeCompiler};
+use jsyc_compiler::{JSSourceCode, BytecodeCompiler};
 use clap::{Arg, App};
 
 use errors::{CompositionResult};

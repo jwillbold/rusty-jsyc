@@ -1,4 +1,4 @@
-use compiler::{CompilerError};
+use jsyc_compiler::{CompilerError};
 use std::{error};
 
 pub type CompositionResult<V> = Result<V, CompositionError>;

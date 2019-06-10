@@ -1,17 +1,19 @@
 [package]
-name = "compiler-interface"
+name = "jsyc-compiler-interface"
 version = "0.1.0"
 authors = ["Johannes Willbold <johannes.willbold@rub.de>"]
 edition = "2018"
+readme = "../README.md"
+license = "LGPL-3.0-only"
 
-[dependencies.compiler]
+[dependencies.jsyc-compiler]
 path = "../compiler"
 
 [dev-dependencies]
 test-exec = "0.1.0"
 
 [dependencies]
-resw = "*"
-resast = "*"
-ressa = "*"
+resw = "0.2.2"
+resast = "0.2.1"
+ressa = "0.5.2"
 clap = "2.33.0"
