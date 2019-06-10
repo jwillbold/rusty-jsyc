@@ -1,9 +1,14 @@
+sudo: false
+
 language: rust
 
 rust:
   - stable
   - beta
   - nightly
+
+os:
+  - linux
 
 matrix:
   allow_failures:
@@ -15,3 +20,7 @@ cache: cargo
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+
+branches:
+  only:
+    - master

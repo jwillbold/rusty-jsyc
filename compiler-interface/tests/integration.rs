@@ -7,7 +7,7 @@ const DEFAULT_OUTPUT: &str = "Starting to compile bytecode...\nFinished bytecode
 
 #[test]
 fn test_empty_bc_std_vm() {
-    let cmd = Command::cargo_bin("composer").unwrap()
+    let cmd = Command::cargo_bin("jsyc-compiler-interface").unwrap()
                         .args(&["tests/data/empty/empty/main.js", "../vm/vm.js", "tests/.compiled/empty/empty"])
                         .output().unwrap();
 
@@ -16,7 +16,7 @@ fn test_empty_bc_std_vm() {
 
 #[test]
 fn test_compose_snake() {
-    let cmd = Command::cargo_bin("composer").unwrap()
+    let cmd = Command::cargo_bin("jsyc-compiler-interface").unwrap()
                 .args(&["../playground/snake/unobfuscated/snake.js", "../vm/vm.js", "../playground/snake/obfuscated"])
                 .output().unwrap();
 
