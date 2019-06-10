@@ -1,26 +1,38 @@
-sudo: false
-
+sudo: required
 language: rust
-
+cache: cargo
 rust:
   - stable
   - beta
   - nightly
-
+# Required for tarpaulin (code coverage)
+addons:
+    apt:
+        packages:
+            - libssl-dev
 os:
   - linux
-
 matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
+branches:
+  only:
+    - master
 
-cache: cargo
+# Add code coverage with tarpaulin
+before_cache: |
+  if [[ "$TRAVIS_OS_NAME" == linux && "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo install cargo-tarpaulin -f
+  fi
 
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
 
-branches:
-  only:
-    - master
+# Save the code coverage result
+after_success: |
+  if [[ "$TRAVIS_OS_NAME" == linux && "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo tarpaulin --out Xml
+    bash <(curl -s https://codecov.io/bash)
+  fi

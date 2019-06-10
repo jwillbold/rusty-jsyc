@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/jwillbold/rusty-jsyc.svg?token=hPh87VpFt3MQPwdySdkS&branch=master)](https://travis-ci.com/jwillbold/rusty-jsyc)
+
 # Rusty-JSYC
 
 is a JavaScript-To-Bytecode compiler written in rust. The bytecode is meant to be used in conjunction with the provided virtual machine written in JavaScript. Combined they are meant to be used as virtualization obfuscation.
