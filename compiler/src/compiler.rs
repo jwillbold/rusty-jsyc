@@ -8,7 +8,7 @@ use crate::instruction_set::{InstructionSet, CommonLiteral, ReservedeRegister};
 pub use resast::prelude::*;
 use resast::prelude::Identifier;
 use std::borrow::Borrow;
-use std::collections::HashMap;
+use std::collections::{HashMap};
 
 
 #[derive(Debug, Clone)]
@@ -23,6 +23,27 @@ pub struct BytecodeFunction
     // Same explanation as above for 'bytecode'
     used_decls: Option<Vec<Register>>,
 }
+
+impl BytecodeFunction {
+    pub fn new_phantom(ident: Identifier, arg_regs: Vec<Register>) -> Self {
+        BytecodeFunction {
+            ident: ident,
+            bytecode: None,
+            arguments: arg_regs,
+            used_decls: None,
+        }
+    }
+
+    pub fn from_phantom(phantom: Self, bytecode: Bytecode, used_decls: Vec<Register>) -> Self {
+        BytecodeFunction {
+            ident: phantom.ident,
+            bytecode: Some(bytecode),
+            arguments: phantom.arguments,
+            used_decls: Some(used_decls),
+        }
+    }
+}
+
 
 #[derive(Clone)]
 pub struct LabelGenerator
@@ -43,6 +64,7 @@ impl LabelGenerator {
         counter
     }
 }
+
 
 #[derive(Clone, Debug)]
 pub struct DeclDependency {
@@ -76,6 +98,7 @@ impl DeclDepencies {
         self.decls_decps.get(ident)
     }
 }
+
 
 #[derive(Clone)]
 pub struct BytecodeCompiler
@@ -202,9 +225,6 @@ impl BytecodeCompiler {
     fn compile_return_stmt(&mut self, ret: &Option<Expr>) -> BytecodeResult {
         let used_decl_regs: Vec<Reg> = self.scopes.current_scope()?.used_decls.iter()
                                             .map(|used_decl| used_decl.register).collect();
-
-        println!("Compiling return: {:?}", used_decl_regs);
-
 
         let (bytecode, ret_reg) = match ret {
             Some(ret_expr) => {
@@ -480,6 +500,8 @@ impl BytecodeCompiler {
             self.maybe_compile_expr(arg_expr, None)
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
+        // self.current_function()?.function_calls.push(func);
+
         Ok(args_bytecode.into_iter().collect::<Bytecode>()
             .add(Command::new(Instruction::CallBytecodeFunc,
                                 vec![Operand::function_addr(func),
@@ -643,12 +665,7 @@ impl BytecodeCompiler {
             }
         }).collect::<CompilerResult<Vec<Register>>>()?;
 
-        self.functions.push(BytecodeFunction {
-            ident: func_ident,
-            bytecode: None,
-            arguments: arg_regs,
-            used_decls: None,
-        });
+        self.functions.push(BytecodeFunction::new_phantom(func_ident, arg_regs));
 
         let mut func_bc = func.body.iter().map(|part| self.compile_program_part(&part))
                                    .collect::<BytecodeResult>()?;
@@ -662,12 +679,7 @@ impl BytecodeCompiler {
 
         // It is save to unwrap here since it was definitly pushed above
         let phantom_func = self.functions.pop().unwrap();
-        self.functions.push(BytecodeFunction {
-            ident: phantom_func.ident,
-            bytecode: Some(func_bc),
-            arguments: phantom_func.arguments,
-            used_decls: Some(used_decls)
-        });
+        self.functions.push(BytecodeFunction::from_phantom(phantom_func, func_bc, used_decls));
 
         Ok(Bytecode::new())
     }
@@ -724,7 +736,7 @@ impl BytecodeCompiler {
                         "Bytecode function name should be a function address token".into())) }
                 };
 
-                if let Operand::BytecodeFuncArguments(arg_regs) = args {
+                if let Operand::FunctionArguments(arg_regs) = args {
                     cmd.operands[2] = Operand::RegistersArray(
                         func.arguments.iter().zip(arg_regs.args.iter()).map(|(&a, &b)| vec![a, b]).flatten().collect()
                     );

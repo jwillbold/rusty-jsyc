@@ -174,11 +174,11 @@ impl ToBytes for LabelAddrToken {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct BytecodeFuncArguments {
+pub struct FunctionArguments {
     pub args: Vec<Register>
 }
 
-impl ToBytes for BytecodeFuncArguments {
+impl ToBytes for FunctionArguments {
     fn to_bytes(&self) -> Vec<u8> {
         vec![0; self.args.len()]
         // Operand::encode_registers_array(&regs)
@@ -315,7 +315,7 @@ pub enum Operand
 
     FunctionAddr(BytecodeAddrToken),
     BranchAddr(LabelAddrToken),
-    BytecodeFuncArguments(BytecodeFuncArguments)
+    FunctionArguments(FunctionArguments),
 }
 
 impl Operand {
@@ -352,7 +352,7 @@ impl Operand {
     }
 
     pub fn bc_func_args(arg_regs: Vec<Register>) -> Self {
-        Operand::BytecodeFuncArguments(BytecodeFuncArguments{ args: arg_regs })
+        Operand::FunctionArguments(FunctionArguments{ args: arg_regs })
     }
 
     pub fn is_worth_caching(&self) -> bool {
@@ -421,7 +421,7 @@ impl ToBytes for Operand {
             Operand::RegistersArray(regs) => Operand::encode_registers_array(&regs),
             Operand::FunctionAddr(token)  => token.to_bytes(),
             Operand::BranchAddr(token) => token.to_bytes(),
-            Operand::BytecodeFuncArguments(args) => args.to_bytes(),
+            Operand::FunctionArguments(args) => args.to_bytes(),
         }
     }
 
@@ -435,7 +435,7 @@ impl ToBytes for Operand {
             Operand::RegistersArray(regs) => 1 + regs.len(),
             Operand::FunctionAddr(token) => token.length_in_bytes(),
             Operand::BranchAddr(token) => token.length_in_bytes(),
-            Operand::BytecodeFuncArguments(args) => args.length_in_bytes(),
+            Operand::FunctionArguments(args) => args.length_in_bytes(),
         }
     }
 }
@@ -452,7 +452,7 @@ impl std::fmt::Display for Operand {
 
             Operand::FunctionAddr(bc_addr_token) => write!(f, "FunctionAddr({:?})", bc_addr_token),
             Operand::BranchAddr(label_addr_token) => write!(f, "BranchAddr({:?})", label_addr_token),
-            Operand::BytecodeFuncArguments(args) => write!(f, "BytecodeFuncArguments({:?})", args),
+            Operand::FunctionArguments(args) => write!(f, "FunctionArguments({:?})", args),
         }
     }
 }
