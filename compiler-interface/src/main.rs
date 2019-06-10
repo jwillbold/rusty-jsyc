@@ -9,7 +9,7 @@ mod errors;
 
 use std::io::Read;
 use std::fs;
-use compiler::{Bytecode, JSSourceCode, BytecodeCompiler};
+use compiler::{JSSourceCode, BytecodeCompiler};
 use clap::{Arg, App};
 
 use errors::{CompositionResult};
@@ -36,7 +36,7 @@ fn main() -> CompositionResult<()> {
     let matches = App::new("Rusty JSYC bytecode compiler")
                     .version("1.0")
                     .author("Johannes Willbold <johannes.willbold@rub.de>")
-                    .about("A tool to compile JavaScript code into bytecode to be use din virtualization obfuscation.")
+                    .about("A tool to compile JavaScript code into bytecode to be used in virtualization obfuscation.")
                     .arg(Arg::with_name("INPUT")
                             .required(true)
                             .value_name("/path/to/javascript.js"))

@@ -1,2 +1,2 @@
 [workspace]
-members = ["compiler", "composer"]
+members = ["compiler", "compiler-interface"]

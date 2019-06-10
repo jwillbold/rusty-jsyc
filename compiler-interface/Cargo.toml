@@ -1,5 +1,5 @@
 [package]
-name = "composer"
+name = "compiler-interface"
 version = "0.1.0"
 authors = ["Johannes Willbold <johannes.willbold@rub.de>"]
 edition = "2018"
