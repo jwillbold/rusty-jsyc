@@ -13,7 +13,7 @@ path = "../compiler"
 assert_cmd = "0.11.1"
 
 [dependencies]
-resw = "0.2.2"
-resast = "0.2.1"
-ressa = "0.5.2"
-clap = "2.33.0"
+resw = "~0.2.2"
+ressa = "~0.5.2"
+resast = "~0.2.1"
+clap = "~2.33.0"

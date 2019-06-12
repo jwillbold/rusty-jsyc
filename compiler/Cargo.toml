@@ -6,7 +6,14 @@ edition = "2018"
 readme = "../README.md"
 license = "LGPL-3.0-only"
 
+keywords = ["JavaScript", "Obfuscation", "Virtualization Obfuscation", "Compiler", "RESSA"]
+categories = []
+
+[badges]
+travis-ci = { repository = "jwillbold/rusty-jsyc", branch = "master" }
+codecov = { repository = "jwillbold/rusty-jsyc", branch = "master", service = "github" }
+
 [dependencies]
-ressa = "0.5.2"
-resast = "0.2.1"
-base64 = "0.10"
+ressa = "~0.5.2"
+resast = "~0.2.1"
+base64 = "~0.10"
