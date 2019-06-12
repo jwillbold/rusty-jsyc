@@ -1,13 +1,12 @@
 extern crate jsyc_compiler;
+
 use jsyc_compiler::*;
 use jshelper::{JSSourceCode};
 
 
 #[cfg(test)]
 fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc: Bytecode) {
-    let js_source = JSSourceCode {
-        source_code: js_code.to_string()
-    };
+    let js_source = JSSourceCode::new(js_code.to_string());
 
     assert_eq!(compiler.compile(&js_source).unwrap(), expected_bc);
 }
@@ -15,9 +14,7 @@ fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc
 #[cfg(test)]
 fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: Bytecode) {
     let mut compiler = BytecodeCompiler::new();
-    let js_source = JSSourceCode {
-        source_code: js_code.to_string()
-    };
+    let js_source = JSSourceCode::new(js_code.to_string());
 
     assert_eq!(compiler.compile(&js_source).unwrap(), expected_bc);
 
@@ -28,9 +25,7 @@ fn run_test_deps(js_code: &str, expected_decl_deps: &[&str], expected_bc: Byteco
 
 #[cfg(test)]
 fn check_is_error(js_code: &str, mut compiler: compiler::BytecodeCompiler) {
-    let js_source = JSSourceCode {
-        source_code: js_code.to_string()
-    };
+    let js_source = JSSourceCode::new(js_code.to_string());
 
     assert!(compiler.compile(&js_source).is_err());
 }

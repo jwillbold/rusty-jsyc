@@ -1,6 +1,7 @@
 use ressa::Error as RessaError;
 use std::{error};
 
+
 #[derive(Debug)]
 pub enum CompilerError {
     Parser(RessaError),

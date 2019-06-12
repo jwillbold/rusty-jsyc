@@ -2,7 +2,7 @@ use crate::bytecode::*;
 use crate::scope::{Reg, Register, Scope, Scopes};
 use crate::error::{CompilerError, CompilerResult};
 
-pub use resast::prelude::*;
+use resast::prelude::*;
 
 
 macro_rules! make_enum_helper{
@@ -90,7 +90,9 @@ impl CommonLiteral {
     }
 }
 
-
+/// Represents common literals
+///
+/// Common literals are literals such as ``0``, ``1`` or ``undefined``.
 #[derive(Clone)]
 pub struct CommonLiteralRegs
 {
@@ -125,6 +127,11 @@ enum ReservedeRegister {
     TrashRegister
 });
 
+/// Represents a set of reserved registers
+///
+/// Reserved register are registers used by the virtual machine for special purposes.
+/// For example [ReservedeRegister::BytecodePointer](enum.ReservedeRegister.html#ReservedeRegister::BytecodePointer)
+/// represents the register where the during the execution the current bytecode pointer is stored.
 #[derive(Clone)]
 pub struct ReservedeRegisters {
     regs: Vec<Register>
@@ -144,6 +151,7 @@ impl ReservedeRegisters {
         })
     }
 
+    /// Returns the actual register of a reserved register type
     pub fn reg(&self, mp_reg: &ReservedeRegister) -> Reg {
         self.regs[mp_reg.variant_index()]
     }

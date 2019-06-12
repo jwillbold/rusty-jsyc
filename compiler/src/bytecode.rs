@@ -1,13 +1,17 @@
 use crate::error::{CompilerError, CompilerResult};
 use crate::scope::Register;
+
 use std::{u16};
 use std::iter::FromIterator;
-
-pub use resast::prelude::*;
+use resast::prelude::*;
 
 
 pub type BytecodeResult = Result<Bytecode, CompilerError>;
 
+/// Labels are used as targets of jumps
+pub type Label = u32;
+
+/// This trait is implemented by elements that are part of the final bytecode
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
 
@@ -16,7 +20,7 @@ pub trait ToBytes {
     }
 }
 
-
+/// Represents the basics instructions known to this compiler
 #[derive(Debug, PartialEq, Clone)]
 pub enum Instruction
 {
@@ -138,10 +142,6 @@ impl Instruction {
     }
 }
 
-#[test]
-fn test_instrution_to_byte() {
-    assert_eq!(Instruction::Add.to_byte(), 100);
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct BytecodeAddrToken {
@@ -188,6 +188,14 @@ impl ToBytes for FunctionArguments {
     }
 }
 
+/// Represents all literal types of JavaScript
+///
+/// ``var a = 1.5;`` => ``a => BytecodeLiteral::FloatNum(1.5)``
+///
+/// ``var b = 100;`` => ``b => BytecodeLiteral::IntNumber(100)``
+///
+/// # Note
+/// JavaScript regex literals are not yet supported.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BytecodeLiteral
 {
@@ -260,48 +268,15 @@ impl std::fmt::Display for BytecodeLiteral {
     }
 }
 
-#[test]
-fn test_bytecode_literal_from_literal() {
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0".into())).unwrap(),
-                BytecodeLiteral::IntNumber(0));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1".into())).unwrap(),
-                BytecodeLiteral::IntNumber(1));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0x10".into())).unwrap(),
-                BytecodeLiteral::IntNumber(16));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0b10".into())).unwrap(),
-                BytecodeLiteral::IntNumber(2));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0o10".into())).unwrap(),
-                BytecodeLiteral::IntNumber(8));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0".into())).unwrap(),
-                BytecodeLiteral::FloatNum(0.0));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1".into())).unwrap(),
-                BytecodeLiteral::FloatNum(1.1));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".0".into())).unwrap(),
-                BytecodeLiteral::FloatNum(0.0));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1".into())).unwrap(),
-                BytecodeLiteral::FloatNum(0.1));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0e0".into())).unwrap(),
-                BytecodeLiteral::FloatNum(0.0));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1e2".into())).unwrap(),
-                BytecodeLiteral::FloatNum(110.0));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E0".into())).unwrap(),
-                BytecodeLiteral::FloatNum(0.1));
-
-    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E2".into())).unwrap(),
-                BytecodeLiteral::FloatNum(10.0));
-}
-
+/// Represents variants of bytecode operand
+///
+/// There are two types of operands. Regular operands(numbers, strings or registers) and token operands.
+/// Token operands are only used by the compiler to express a dependency that cannot be calculated
+/// at the point of declaration. For example, the target of a jump is an address. However, an address
+/// can only be calculated when the entire bytecode is known. Thus, all jump instructions contain a token
+/// operand [BranchAddr](enum.Operand.html#Operand::FunctionAddr) which holds the target [label](type.Label.html)
+/// of the jump. After the compilation of this, these tokens are then replaced.
+/// Thus, token operands cannot be part of a final bytecode.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operand
 {
@@ -456,41 +431,15 @@ impl std::fmt::Display for Operand {
     }
 }
 
-#[test]
-fn test_encode_string() {
-    assert_eq!(Operand::String("Hello World".into()).to_bytes(),
-               vec![0, 11, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
-}
-
-#[test]
-fn test_encode_registers_array() {
-    assert_eq!(Operand::RegistersArray(vec![]).to_bytes(),
-               vec![0]);
-   assert_eq!(Operand::RegistersArray(vec![1, 2, 200]).to_bytes(),
-              vec![3, 1, 2, 200]);
-}
-
-#[test]
-fn test_encode_long_num() {
-    assert_eq!(Operand::LongNum(1_234_567_891).to_bytes(),
-                vec![0x49, 0x96, 0x02, 0xD3]);
-
-    assert_eq!(Operand::LongNum(-1_234_567_891 as i32).to_bytes(),
-                vec![0xB6, 0x69, 0xFD, 0x2D])
-}
-
-#[test]
-fn test_encode_float_num() {
-    assert_eq!(Operand::FloatNum(0.12345).to_bytes(),
-                vec![63, 191, 154, 107, 80, 176, 242, 124]);
-
-    assert_eq!(Operand::FloatNum(0.5).to_bytes(),
-                vec![0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-
-    assert_eq!(Operand::FloatNum(-1.1234).to_bytes(),
-                vec![191, 241, 249, 114, 71, 69, 56, 239])
-}
-
+/// Contains an instruction and its operands
+///
+/// Every instruction consists of one [instruction](enum.Instruction.html) and zero or more [operands](enum.Operand.html).
+///
+///```
+/// use jsyc_compiler::{Command, Instruction, Operand};
+///
+/// let cmd = Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(100)]);
+///```
 #[derive(Debug, PartialEq, Clone)]
 pub struct Command
 {
@@ -529,20 +478,6 @@ impl ToBytes for Command {
     }
 }
 
-#[test]
-fn test_command() {
-    assert_eq!(Command{
-        instruction: Instruction::Add,
-        operands:vec![
-            Operand::Reg(150),
-            Operand::Reg(151),
-        ]
-    }.to_bytes(),
-    vec![100, 150, 151]);
-}
-
-
-pub type Label = u32;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BytecodeElement
@@ -567,6 +502,19 @@ impl ToBytes for BytecodeElement {
     }
 }
 
+/// Represents the bytecode produced by the [compiler](struct.BytecodeCompiler.html).
+///
+/// Bytecode is a wrapper for a list of [bytecode elements](enum.BytecodeElement.html). It offers
+/// an API to extend it by other [bytecode](struct.Bytecode.html), [commands](struct.Command.html) or [labels](type.Label.html).
+/// ```
+/// use jsyc_compiler::{Bytecode, Command, Instruction, Operand};
+///
+/// let bytecode = Bytecode::new()
+///                  .add(Command::new(Instruction::LoadNum,
+///                                    vec![Operand::Reg(10), Operand::ShortNum(10)]))
+///                  .add(Command::new(Instruction::Add,
+///                                    vec![Operand::Reg(10), Operand::Reg(9)]));
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct Bytecode {
     pub elements: Vec<BytecodeElement>,
@@ -604,20 +552,24 @@ impl Bytecode {
         self
     }
 
+    /// Appends a [label](type.Label.html) as [bytecode element](enum.BytecodeElement.html).
     pub fn add_label(mut self, label: Label) -> Self {
         self.elements.push(BytecodeElement::Label(label));
         self
     }
 
+    /// Appends another bytecode onto this bytecode.
     pub fn add_bytecode(mut self, mut other: Bytecode) -> Self {
         self.elements.append(&mut other.elements);
         self
     }
 
+    /// Returns the base64-encoded bytecode as string.
     pub fn encode_base64(&self) -> String {
         base64::encode(&self.to_bytes())
     }
 
+    /// Checks whether the last element is a [return instruction](enum.Instruction.html#Instruction::ReturnBytecodeFunc).
     pub fn last_op_is_return(&self) -> bool {
         match self.elements.last() {
             Some(last_element) => match last_element {
@@ -628,6 +580,7 @@ impl Bytecode {
         }
     }
 
+    /// Returns an iterator over all [commands](struct.Command.html) in the bytecode.
     pub fn commands_iter_mut(&mut self) -> impl std::iter::Iterator<Item = &mut Command> {
         self.elements.iter_mut().filter_map(|element| match element {
             BytecodeElement::Command(cmd) => Some(cmd),
@@ -654,6 +607,100 @@ impl ToBytes for Bytecode {
     }
 }
 
+
+#[test]
+fn test_instrution_to_byte() {
+    assert_eq!(Instruction::Add.to_byte(), 100);
+}
+
+#[test]
+fn test_bytecode_literal_from_literal() {
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0".into())).unwrap(),
+                BytecodeLiteral::IntNumber(0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1".into())).unwrap(),
+                BytecodeLiteral::IntNumber(1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0x10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(16));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0b10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(2));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0o10".into())).unwrap(),
+                BytecodeLiteral::IntNumber(8));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1".into())).unwrap(),
+                BytecodeLiteral::FloatNum(1.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("0.0e0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number("1.1e2".into())).unwrap(),
+                BytecodeLiteral::FloatNum(110.0));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E0".into())).unwrap(),
+                BytecodeLiteral::FloatNum(0.1));
+
+    assert_eq!(BytecodeLiteral::from_lit(Literal::Number(".1E2".into())).unwrap(),
+                BytecodeLiteral::FloatNum(10.0));
+}
+
+#[test]
+fn test_encode_string() {
+    assert_eq!(Operand::String("Hello World".into()).to_bytes(),
+               vec![0, 11, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+}
+
+#[test]
+fn test_encode_registers_array() {
+    assert_eq!(Operand::RegistersArray(vec![]).to_bytes(),
+               vec![0]);
+   assert_eq!(Operand::RegistersArray(vec![1, 2, 200]).to_bytes(),
+              vec![3, 1, 2, 200]);
+}
+
+#[test]
+fn test_encode_long_num() {
+    assert_eq!(Operand::LongNum(1_234_567_891).to_bytes(),
+                vec![0x49, 0x96, 0x02, 0xD3]);
+
+    assert_eq!(Operand::LongNum(-1_234_567_891 as i32).to_bytes(),
+                vec![0xB6, 0x69, 0xFD, 0x2D])
+}
+
+#[test]
+fn test_encode_float_num() {
+    assert_eq!(Operand::FloatNum(0.12345).to_bytes(),
+                vec![63, 191, 154, 107, 80, 176, 242, 124]);
+
+    assert_eq!(Operand::FloatNum(0.5).to_bytes(),
+                vec![0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+    assert_eq!(Operand::FloatNum(-1.1234).to_bytes(),
+                vec![191, 241, 249, 114, 71, 69, 56, 239])
+}
+
+#[test]
+fn test_command() {
+    assert_eq!(Command{
+        instruction: Instruction::Add,
+        operands:vec![
+            Operand::Reg(150),
+            Operand::Reg(151),
+        ]
+    }.to_bytes(),
+    vec![100, 150, 151]);
+}
 
 #[test]
 fn test_bytecode_to_bytes() {

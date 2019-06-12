@@ -1,6 +1,5 @@
 use std::collections::*;
-
-pub use resast::prelude::*;
+use resast::prelude::*;
 
 use crate::bytecode::{BytecodeLiteral};
 use crate::error::{CompilerError, CompilerResult};
@@ -8,7 +7,10 @@ use crate::error::{CompilerError, CompilerResult};
 pub type Register = u8;
 pub type Reg = Register;
 
-// A reimplementantion of resast::prelude::VaribaleKind to derive the HashMap, PartialEq and Eq trait
+/// A reimplementantion of resast::prelude::VaribaleKind
+///
+/// This reimplementantion of resast::prelude::VaribaleKind is done to derive the HashMap,
+/// PartialEq and Eq traits.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum MyVariableKind {
     Var,
@@ -25,6 +27,7 @@ impl From<&VariableKind> for MyVariableKind {
         }
     }
 }
+
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum DeclarationType {

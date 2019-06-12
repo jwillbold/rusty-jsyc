@@ -5,19 +5,18 @@ use crate::scope::*;
 use crate::bytecode::{*};
 use crate::instruction_set::{InstructionSet, CommonLiteral, ReservedeRegister};
 
-pub use resast::prelude::*;
-use resast::prelude::Identifier;
+use resast::prelude::*;
 use std::borrow::Borrow;
 use std::collections::{HashMap};
 
 
 #[derive(Debug, Clone)]
-pub struct BytecodeFunction
+struct BytecodeFunction
 {
     ident: String,
-    // During the compilation of a function block, "bytecode" is not know yet (obviously).
-    // But an instance of this struct is inserted into the function list anyway,
-    // to allow functions using callback to themself.
+    // During the compilation of a function block, "bytecode" is not known yet (obviously).
+    // But an instance of this struct is anyway inserted into the function list,
+    // to allow functions using callbacks to themselves.
     bytecode: Option<Bytecode>,
     arguments: Vec<Register>,
     // Same explanation as above for 'bytecode'
@@ -46,7 +45,7 @@ impl BytecodeFunction {
 
 
 #[derive(Clone)]
-pub struct LabelGenerator
+struct LabelGenerator
 {
     counter: u32
 }
@@ -65,7 +64,7 @@ impl LabelGenerator {
     }
 }
 
-
+/// A declaration dependency containing the identifier and the expected register
 #[derive(Clone, Debug)]
 pub struct DeclDependency {
     pub ident: Identifier,
@@ -78,6 +77,7 @@ impl DeclDependency {
     }
 }
 
+/// Represents a set of declaration dependencies
 #[derive(Clone, Debug)]
 pub struct DeclDepencies {
     pub decls_decps: HashMap<Identifier, Register>
@@ -99,12 +99,21 @@ impl DeclDepencies {
     }
 }
 
-
+/// Compiles JavaScript source code into bytecode.
+///
+/// ```
+/// use jsyc_compiler::{JSSourceCode, BytecodeCompiler};
+///
+/// let js_code = JSSourceCode::new("console.log('Hello World');".into());
+/// let mut compiler = BytecodeCompiler::new();
+///
+/// let bytecode = compiler.compile(&js_code).expect("Failed to compile code");
+/// println!("bytecode: {}", bytecode);
+/// ```
 #[derive(Clone)]
 pub struct BytecodeCompiler {
     scopes: Scopes,
     // This is not a hashmap but a vector only to make tetsing easier
-    // functions: HashMap<Identifier, BytecodeFunction>,
     functions: Vec<BytecodeFunction>,
     isa: InstructionSet,
     label_generator: LabelGenerator,
@@ -113,6 +122,7 @@ pub struct BytecodeCompiler {
 
 impl BytecodeCompiler {
 
+    /// Creates a new bytecode compiler
     pub fn new() -> Self {
         let mut scopes = Scopes::new();
         let isa = InstructionSet::default(scopes.current_scope_mut().unwrap());
@@ -127,14 +137,37 @@ impl BytecodeCompiler {
         }
     }
 
+    /// Add a variable decleration to the compiler
+    ///
+    /// By adding a variable declaration, you can inform the compiler about the existence of
+    /// an external declaration. However, this is not necessary since dependencies are tracked
+    /// and can be retrieved after the compilation through [decl_dependencies](struct.BytecodeCompiler.html#method.decl_dependencies).
     pub fn add_var_decl(&mut self, decl: String) ->  CompilerResult<Reg> {
         self.scopes.add_decl(decl, DeclarationType::Variable(MyVariableKind::Var))
     }
 
+    /// Returns all dependencies on external declarations
+    ///
+    /// Usually JavaScript depends on several function and variable declarations from outside
+    /// of the current script: such as `window`, `document` or `setInterval`.
+    /// # Returns
+    /// A list of these dependencies and in which register they are expected to be.
+    /// This result will be available after BytecodeCompiler::compile ran.
     pub fn decl_dependencies(&self) -> &DeclDepencies{
         &self.decl_dependencies
     }
 
+    /// Compiles the provided JavaScript code into bytecode.
+    ///
+    /// ```
+    /// use jsyc_compiler::{JSSourceCode, BytecodeCompiler};
+    ///
+    /// let js_code = JSSourceCode::new("console.log('Hello World');".into());
+    /// let mut compiler = BytecodeCompiler::new();
+    ///
+    /// let bytecode = compiler.compile(&js_code).expect("Failed to compile code");
+    /// println!("bytecode: {}", bytecode);
+    /// ```
     pub fn compile(&mut self, source: &JSSourceCode) -> BytecodeResult {
         let ast = JSAst::parse(source)?;
         let mut bytecode = match ast.ast {
