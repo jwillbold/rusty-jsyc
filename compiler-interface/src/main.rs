@@ -21,7 +21,7 @@ fn load_vm_template(path: &str) -> CompositionResult<VM> {
     let mut vm_code = String::new();
     f.read_to_string(&mut vm_code)?;
 
-    VM::from_string(JSSourceCode::new(vm_code))
+    VM::from_js_code(JSSourceCode::new(vm_code))
 }
 
 fn load_js_code(path: &str) -> CompositionResult<JSSourceCode> {

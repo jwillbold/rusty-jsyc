@@ -3,13 +3,13 @@ use crate::errors::{CompositionError, CompositionResult};
 use jsyc_compiler::{Bytecode, JSSourceCode, JSAst, DeclDepencies};
 use resast::prelude::*;
 
-
+#[derive(Debug, PartialEq)]
 pub struct VM {
     vm_template: Vec<resast::ProgramPart>
 }
 
 impl VM {
-    pub fn from_string(vm_code: JSSourceCode) -> CompositionResult<Self> {
+    pub fn from_js_code(vm_code: JSSourceCode) -> CompositionResult<Self> {
         match JSAst::parse(&vm_code) {
             Ok(ast_helper) => match ast_helper.ast {
                 Program::Mod(parts) |
@@ -97,7 +97,7 @@ impl VM {
         })
     }
 
-    pub fn strip_uneeded(self) -> CompositionResult<Self> {
+    pub fn strip_unneeded(self) -> CompositionResult<Self> {
         Ok(VM {
             vm_template: self.vm_template.into_iter().filter(|part| {
                 match part {
@@ -130,6 +130,75 @@ impl Composer {
     }
 
     pub fn compose(self, decls_deps: &DeclDepencies) -> CompositionResult<(VM, Bytecode)> {
-        Ok((self.vm.inject_decleration_dependencies(decls_deps)?.strip_uneeded()?, self.bytecode))
+        Ok((self.vm.inject_decleration_dependencies(decls_deps)?.strip_unneeded()?, self.bytecode))
+    }
+}
+
+
+#[test]
+fn test_vm_strip_strip_unneeded() {
+    let vm = VM::from_js_code(JSSourceCode::from_str(
+        "if(typeof window == \"undefined\") {\
+           var window = {};\
+        }\
+        const REGS = {};
+        const OP = {};
+        class VM {}\
+        module.exports = function() {\
+           this.REGS = REGS;\
+        }")).unwrap();
+
+    let clean_vm = vm.strip_unneeded().unwrap();
+    let expected_vm = VM::from_js_code(JSSourceCode::from_str("
+        const REGS = {};\
+        const OP = {};\
+        class VM {}")).unwrap();
+
+    assert_eq!(clean_vm, expected_vm);
+}
+
+#[test]
+fn test_vm_inject_decleration_dependencies() {
+    let vm = VM::from_js_code(JSSourceCode::from_str(
+        "class VM {\
+              init(bytecode) {
+                  this.setReg(255, 0);
+
+                  this.setReg(FutureDeclerationsPlaceHolder, 0);
+              }
+        }")).unwrap();
+
+    let mut decl_deps = DeclDepencies::new();
+    decl_deps.add_decl_dep("document".into(), 2);
+    decl_deps.add_decl_dep("window".into(), 10);
+
+    let injected_vm = vm.inject_decleration_dependencies(&decl_deps).unwrap();
+
+    // Both varinats expected_vm_0 and expected_vm_1 are possible since
+    // DeclDepencies uses a HashMap internally so the order of the elements is unpredictable
+    let expected_vm_0 = VM::from_js_code(JSSourceCode::from_str(
+        "class VM {\
+              init(bytecode) {
+                  this.setReg(255, 0);
+
+                  this.setReg(2, document);
+                  this.setReg(10, window);
+              }
+        }")).unwrap();
+
+    let expected_vm_1 = VM::from_js_code(JSSourceCode::from_str(
+        "class VM {\
+              init(bytecode) {
+                  this.setReg(255, 0);
+
+                  this.setReg(10, window);
+                  this.setReg(2, document);
+              }
+        }")).unwrap();
+
+    if injected_vm == expected_vm_0 {
+        assert_eq!(injected_vm, expected_vm_0);
+    } else {
+        assert_eq!(injected_vm, expected_vm_1);
     }
 }
