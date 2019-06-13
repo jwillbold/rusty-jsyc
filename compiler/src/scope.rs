@@ -75,13 +75,6 @@ impl Scope {
         })
     }
 
-    // TODO: is this still required?
-    pub fn get_throwaway_register(&self) -> CompilerResult<&Register> {
-        self.unused_register.front().ok_or(
-            CompilerError::Custom("All registers are in use. Free up some registers by using less declarations".into())
-        )
-    }
-
     pub fn get_unused_register(&mut self) -> CompilerResult<Register> {
         self.unused_register.pop_front().ok_or(
             CompilerError::Custom("All registers are in use. Free up some registers".into())
@@ -154,7 +147,6 @@ impl Scopes
 {
     pub fn new() -> Scopes {
         Scopes {
-            // literals_cache: HashMap::new(),
             literals: vec![],
             scopes: vec![ Scope::new() ],
         }
@@ -192,11 +184,6 @@ impl Scopes
 
     pub fn reserve_register_back(&mut self) -> CompilerResult<Register> {
         self.current_scope_mut()?.reserve_register_back()
-    }
-
-    // TODO: is this still required?
-    pub fn get_throwaway_register(&self) -> CompilerResult<&Register> {
-        self.current_scope()?.get_throwaway_register()
     }
 
     pub fn get_var(&mut self, var_name: &str) -> CompilerResult<&Declaration> {
@@ -252,8 +239,12 @@ fn test_scopes() {
     scopes.enter_new_scope().unwrap();
         let r1 = scopes.add_var_decl("testVar".into()).unwrap();
         let r2 = scopes.add_var_decl("anotherVar".into()).unwrap();
+        let rx = scopes.current_scope_mut().unwrap().get_unused_register().unwrap();
+        let rxb = scopes.current_scope_mut().unwrap().get_unused_register_back().unwrap();
         assert_ne!(r0, r1);
         assert_ne!(r1, r2);
+        assert_eq!(rx, 3);
+        assert_eq!(rxb, 255);
         assert_eq!(scopes.get_var("testVar").unwrap().register, r1);
         assert_eq!(scopes.get_var("anotherVar").unwrap().register, r2);
     assert!(scopes.leave_current_scope().is_ok());
