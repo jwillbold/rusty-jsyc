@@ -20,7 +20,7 @@ const REGS = {
   // DOCUMENT: 101,
 
   // Reserved registers
-  STACK_PTR: 200,
+  BYTECODE_PTR: 200,
   REG_BACKUP: 201,
   RETURN_VAL: 202,
   BCFUNC_RETURN: 203,
@@ -74,7 +74,7 @@ const OP = {
 class VM {
   constructor() {
     this.regs =  [];
-    this.stack = [];
+    this.bytecode = [];
     this.ops = [];
     this.reg_backups = [];
     this.modified_regs = [];
@@ -146,7 +146,7 @@ class VM {
         vm.setReg(argsArray[i], vm.getReg(argsArray[i+1]));
       }
 
-      vm.setReg(REGS.STACK_PTR, funcOffset);
+      vm.setReg(REGS.BYTECODE_PTR, funcOffset);
     }
 
     this.ops[OP.RETURN_BCFUNC] = function(vm) {
@@ -177,7 +177,7 @@ class VM {
     }
 
     this.ops[OP.EXIT] = function(vm) {
-      vm.setReg(REGS.STACK_PTR, vm.stack.length);
+      vm.setReg(REGS.BYTECODE_PTR, vm.bytecode.length);
     }
 
     this.ops[OP.COND_JUMP] = function(vm) {
@@ -186,13 +186,13 @@ class VM {
       cond = vm.getReg(cond);
 
       if(cond) {
-        vm.setReg(REGS.STACK_PTR, offset);
+        vm.setReg(REGS.BYTECODE_PTR, offset);
       }
     }
 
     this.ops[OP.JUMP] = function(vm) {
       var offset = vm._loadLongNum();
-      vm.setReg(REGS.STACK_PTR, offset);
+      vm.setReg(REGS.BYTECODE_PTR, offset);
     }
 
     this.ops[OP.JUMP_COND_NEG] = function(vm) {
@@ -201,7 +201,7 @@ class VM {
       cond = vm.getReg(cond);
 
       if(!cond) {
-        vm.setReg(REGS.STACK_PTR, offset);
+        vm.setReg(REGS.BYTECODE_PTR, offset);
       }
     }
 
@@ -281,7 +281,7 @@ class VM {
 
     this.ops[OP.ADD] = function(vm) {
       var dst = vm.getByte(), src0 = vm.getByte(), src1 = vm.getByte();
-      vm.setReg(dst, vm.regs[src0] + vm.regs[src1]);
+      vm.setReg(dst, vm.getReg(src0) + vm.getReg(src1));
     }
 
     this.ops[OP.MUL] = function(vm) {
@@ -310,18 +310,18 @@ class VM {
   }
 
   getByte() {
-    return this.stack[this.regs[REGS.STACK_PTR]++];
+    return this.bytecode[this.regs[REGS.BYTECODE_PTR]++];
   }
 
   run() {
-    while(this.regs[REGS.STACK_PTR] < this.stack.length) {
+    while(this.regs[REGS.BYTECODE_PTR] < this.bytecode.length) {
       var op_code = this.getByte();
       var op = this.ops[op_code];
 
       try {
         op(this);
       } catch(e) {
-        console.log("Current stack ptr: ", this.regs[REGS.STACK_PTR], "op code: ", op_code);
+        console.log("Current stack ptr: ", this.regs[REGS.BYTECODE_PTR], "op code: ", op_code);
         throw e;
       }
     }
@@ -330,13 +330,13 @@ class VM {
 
   runAt(offset) {
     this.reg_backups.push([this.regs.slice(), REGS.BCFUNC_RETURN]);
-    this.setReg(REGS.STACK_PTR, offset);
+    this.setReg(REGS.BYTECODE_PTR, offset);
     this.run();
   }
 
   init(bytecode) {
-    this.stack = this._decodeBytecode(bytecode);
-    this.setReg(REGS.STACK_PTR, 0);
+    this.bytecode = this._decodeBytecode(bytecode);
+    this.setReg(REGS.BYTECODE_PTR, 0);
     this.setReg(REGS.RETURN_VAL, 0);
 
     this.setReg(REGS.WINDOW, window);

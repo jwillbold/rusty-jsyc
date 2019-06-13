@@ -184,7 +184,7 @@ impl BytecodeCompiler {
         if self.functions.is_empty() {
             Ok(bytecode)
         } else {
-            self.finalize_function_bytescodes(bytecode.add(Command::new(Instruction::Exit, vec![])))
+            self.finalize_function_bytescodes(bytecode.add(Operation::new(Instruction::Exit, vec![])))
         }
     }
 
@@ -267,7 +267,7 @@ impl BytecodeCompiler {
         };
 
         Ok(bytecode
-            .add(Command::new(Instruction::ReturnBytecodeFunc,
+            .add(Operation::new(Instruction::ReturnBytecodeFunc,
                                 vec![Operand::Reg(ret_reg), Operand::RegistersArray(used_decl_regs)]))
         )
     }
@@ -281,14 +281,14 @@ impl BytecodeCompiler {
         let else_branch_end_label = self.label_generator.generate_label();
 
         let bytecode = test_bytecode
-                .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
+                .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
                 .add_bytecode(if_branch_bc);
 
         if let Some(else_branch) = if_stmt.alternate.borrow() {
             let else_branch_bc = self.compile_stmt(&else_branch.borrow())?;
             //If-Else
             Ok(bytecode
-                .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(else_branch_end_label)]))
+                .add(Operation::new(Instruction::Jump, vec![Operand::branch_addr(else_branch_end_label)]))
                 .add_label(if_branch_end_label)
                 .add_bytecode(else_branch_bc)
                 .add_label(else_branch_end_label)
@@ -308,9 +308,9 @@ impl BytecodeCompiler {
 
         Ok(test_bc
             .add_label(while_cond_label)
-            .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
+            .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(while_end_label)]))
             .add_bytecode(self.compile_stmt(while_stmt.body.borrow())?)
-            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(while_cond_label)]))
+            .add(Operation::new(Instruction::Jump, vec![Operand::branch_addr(while_cond_label)]))
             .add_label(while_end_label))
     }
 
@@ -324,7 +324,7 @@ impl BytecodeCompiler {
             .add_label(dowhile_start_label)
             .add_bytecode(body_bc)
             .add_bytecode(test_bc)
-            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)])))
+            .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)])))
     }
 
     fn compile_for_stmt(&mut self, for_stmt: &ForStmt) -> BytecodeResult {
@@ -344,7 +344,7 @@ impl BytecodeCompiler {
                 let (test_bc, test_reg) = self.maybe_compile_expr(&test_expr, None)?;
 
                 test_bc
-                    .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
+                    .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
             }
             None => Bytecode::new()
         };
@@ -361,7 +361,7 @@ impl BytecodeCompiler {
             .add_bytecode(test_bc)
             .add_bytecode(body_bc)
             .add_bytecode(update_bc)
-            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(loop_start_label)]))
+            .add(Operation::new(Instruction::Jump, vec![Operand::branch_addr(loop_start_label)]))
             .add_label(loop_end_label))
     }
 
@@ -451,7 +451,7 @@ impl BytecodeCompiler {
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
         Ok(bytecodes.into_iter().collect::<Bytecode>()
-            .add(Command::new(Instruction::LoadArray, vec![Operand::Reg(target_reg), Operand::RegistersArray(regs)]))
+            .add(Operation::new(Instruction::LoadArray, vec![Operand::Reg(target_reg), Operand::RegistersArray(regs)]))
         )
     }
 
@@ -473,7 +473,7 @@ impl BytecodeCompiler {
                     let (value_bc, value_reg) = self.maybe_compile_expr(assign.right.borrow(), None)?;
                     Ok(left_bc
                         .add_bytecode(value_bc)
-                        .add(Command::new(Instruction::PropertySet,
+                        .add(Operation::new(Instruction::PropertySet,
                                 vec![Operand::Reg(left_reg), Operand::Reg(prop_reg), Operand::Reg(value_reg)])))
                 } else {
                     Ok(left_bc.add_bytecode(self.compile_expr(assign.right.borrow(), left_reg)?))
@@ -519,9 +519,9 @@ impl BytecodeCompiler {
         let after_cons_label = self.label_generator.generate_label();
 
         Ok(test_bc
-            .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(after_alt_label)]))
+            .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(after_alt_label)]))
             .add_bytecode(consequent_bc)
-            .add(Command::new(Instruction::Jump, vec![Operand::branch_addr(after_cons_label)]))
+            .add(Operation::new(Instruction::Jump, vec![Operand::branch_addr(after_cons_label)]))
             .add_label(after_alt_label)
             .add_bytecode(alt_bc)
             .add_label(after_cons_label))
@@ -533,7 +533,7 @@ impl BytecodeCompiler {
         }).collect::<CompilerResult<Vec<(Bytecode, Reg)>>>()?.into_iter().unzip();
 
         Ok(args_bytecode.into_iter().collect::<Bytecode>()
-            .add(Command::new(Instruction::CallBytecodeFunc,
+            .add(Operation::new(Instruction::CallBytecodeFunc,
                                 vec![Operand::function_addr(func),
                                      Operand::Reg(target_reg),
                                      Operand::bc_func_args(arg_regs)])))
@@ -556,7 +556,7 @@ impl BytecodeCompiler {
         Ok(bytecode.into_iter().collect::<Bytecode>()
             .add_bytecode(callee_bc)
             .add_bytecode(callee_this_bc)
-            .add(Command::new(Instruction::CallFunc, vec![
+            .add(Operation::new(Instruction::CallFunc, vec![
                     Operand::Reg(target_reg),
                     Operand::Reg(callee_reg),
                     Operand::Reg(callee_this_reg),
@@ -575,7 +575,7 @@ impl BytecodeCompiler {
             Err(_) => match self.functions.iter().find(|func| func.ident == *ident) {
                 Some(func) => {
                     Ok(Bytecode::new()
-                        .add(Command::new(Instruction::BytecodeFuncCallback, vec![
+                        .add(Operation::new(Instruction::BytecodeFuncCallback, vec![
                             Operand::Reg(target_reg),
                             Operand::function_addr(ident.clone()),
                             Operand::RegistersArray(func.arguments.clone())])))
@@ -610,11 +610,11 @@ impl BytecodeCompiler {
 
         match logical.operator {
             LogicalOperator::And => Ok(left_bc
-                .add(Command::new(Instruction::JumpCondNeg, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
+                .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
                 .add_bytecode(right_bc)
                 .add_label(after_right_label)),
             LogicalOperator::Or => Ok(left_bc
-                .add(Command::new(Instruction::JumpCond, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
+                .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(target_reg), Operand::branch_addr(after_right_label)]))
                 .add_bytecode(right_bc)
                 .add_label(after_right_label))
         }
@@ -639,7 +639,7 @@ impl BytecodeCompiler {
         let (member_bc, obj_reg, prop_reg) = self.compile_member_expr(member)?;
 
         Ok(member_bc
-            .add(Command::new(Instruction::PropAccess, vec![
+            .add(Operation::new(Instruction::PropAccess, vec![
                     Operand::Reg(target_reg), Operand::Reg(obj_reg), Operand::Reg(prop_reg)
                 ]
             )))
@@ -718,7 +718,7 @@ impl BytecodeCompiler {
         let mut offset_counter = offset;
         let label_offsets: HashMap<Label, usize> = bc.elements.iter().filter_map(|element| {
             match element {
-                BytecodeElement::Command(cmd) => {offset_counter += cmd.length_in_bytes(); None},
+                BytecodeElement::Operation(cmd) => {offset_counter += cmd.length_in_bytes(); None},
                 BytecodeElement::Label(label) => Some((label.clone(), offset_counter.clone()))
             }
         }).collect();
@@ -804,7 +804,7 @@ fn test_bytecode_compile_var_decl() {
     assert_eq!(test_expr_ident.compile_var_decl(&VariableKind::Var, &vec![
             VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Ident("anotherVar".into()))}
         ]).unwrap(),
-        Bytecode::new().add(Command::new(Instruction::Copy,
+        Bytecode::new().add(Operation::new(Instruction::Copy,
             vec![Operand::Reg(test_expr_ident.scopes.get_var("testVar".into()).unwrap().register),
                  Operand::Reg(test_expr_ident_reg)])));
 
@@ -812,7 +812,7 @@ fn test_bytecode_compile_var_decl() {
      assert_eq!(test_expr_str_lit.compile_var_decl(&VariableKind::Var, &vec![
              VariableDecl{id: Pat::Identifier("testVar".into()), init: Some(Expr::Literal(Literal::String("\"TestString\"".into())))}
          ]).unwrap(),
-         Bytecode::new().add(Command::new(Instruction::LoadString,
+         Bytecode::new().add(Operation::new(Instruction::LoadString,
              vec![Operand::Reg(test_expr_str_lit.scopes.get_var("testVar".into()).unwrap().register),
                   Operand::String("TestString".into())])));
 }

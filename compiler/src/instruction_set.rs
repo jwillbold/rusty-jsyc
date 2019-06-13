@@ -185,7 +185,7 @@ impl InstructionSet {
         self.reserved_regs.reg(common_lit)
     }
 
-    pub fn load_op(&self, left: Reg, right: Operand) -> Command {
+    pub fn load_op(&self, left: Reg, right: Operand) -> Operation {
         let instruction = match right {
             Operand::String(_) => Instruction::LoadString,
             Operand::FloatNum(_) => Instruction::LoadFloatNum,
@@ -198,10 +198,10 @@ impl InstructionSet {
             Operand::FunctionArguments(_) => unimplemented!("...")
         };
 
-        Command::new(instruction, vec![Operand::Reg(left), right])
+        Operation::new(instruction, vec![Operand::Reg(left), right])
     }
 
-    pub fn assignment_op(&self, op: &AssignmentOperator, rd: Reg, rs: Reg) -> Command {
+    pub fn assignment_op(&self, op: &AssignmentOperator, rd: Reg, rs: Reg) -> Operation {
         let instr = match op {
             AssignmentOperator::Equal => Instruction::Copy,
             AssignmentOperator::PlusEqual => Instruction::Add,
@@ -219,16 +219,16 @@ impl InstructionSet {
             _ => unimplemented!("The correct branch for the assignment op ist not yet implemented")
         };
 
-        Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(rd), Operand::Reg(rs)])
+        Operation::new(instr, vec![Operand::Reg(rd), Operand::Reg(rd), Operand::Reg(rs)])
     }
 
-    pub fn update_op(&self, op: &UpdateOperator, rd: Reg) -> Command {
+    pub fn update_op(&self, op: &UpdateOperator, rd: Reg) -> Operation {
         let instr = match op {
             UpdateOperator::Increment => Instruction::Add,
             UpdateOperator::Decrement => Instruction::Minus,
         };
 
-        Command::new(instr, vec![
+        Operation::new(instr, vec![
             Operand::Reg(rd),
             Operand::Reg(rd),
             Operand::Reg(self.common_literal_reg(&CommonLiteral::Num1))
@@ -236,15 +236,15 @@ impl InstructionSet {
         )
     }
 
-    pub fn unary_op(&self, op: &UnaryOperator, rd: Reg, rs: Reg) -> CompilerResult<Command> {
+    pub fn unary_op(&self, op: &UnaryOperator, rd: Reg, rs: Reg) -> CompilerResult<Operation> {
         Ok(match op {
-            UnaryOperator::Minus => Command::new(Instruction::Minus, vec![
+            UnaryOperator::Minus => Operation::new(Instruction::Minus, vec![
                 Operand::Reg(rd),
                 Operand::Reg(self.common_literal_reg(&CommonLiteral::Num0)),
                 Operand::Reg(rs)
                 ]
             ),
-            UnaryOperator::Plus => Command::new(Instruction::Add, vec![
+            UnaryOperator::Plus => Operation::new(Instruction::Add, vec![
                 Operand::Reg(rd),
                 Operand::Reg(self.common_literal_reg(&CommonLiteral::Num0)),
                 Operand::Reg(rs)
@@ -259,7 +259,7 @@ impl InstructionSet {
         })
     }
 
-    pub fn binary_op(&self, op: &BinaryOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Command> {
+    pub fn binary_op(&self, op: &BinaryOperator, rd: Reg, r0: Reg, r1: Reg) -> CompilerResult<Operation> {
         let instr = match op {
             BinaryOperator::Equal => Instruction::CompEqual,
             BinaryOperator::NotEqual => Instruction::CompNotEqual,
@@ -286,6 +286,6 @@ impl InstructionSet {
             _ => { return Err(CompilerError::is_unsupported("Binary operation", op)); }
         };
 
-        Ok(Command::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))
+        Ok(Operation::new(instr, vec![Operand::Reg(rd), Operand::Reg(r0), Operand::Reg(r1)]))
     }
 }

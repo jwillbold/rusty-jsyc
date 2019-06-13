@@ -72,7 +72,7 @@ This was tested in Chrome 74 and Firefox 67. However, any ES6 capable browser sh
 ## Virtualization Obfuscation
 
 Virtualization obfuscation is a state-of-the-art obfuscation scheme. It obfuscates the code by first compiling it into an arbitrary instruction set which must only be understood by the virtual machine executing it. This virtual machine may exist for the sole purpose of executing this one bytecode and is thus distributed along with the compiled bytecode. The virtual machine is then called with this bytecode and executes it. Thus, the actual code is executed.
-Since the bytecode is executed instruction by instruction, the original code is never fully visible anywhere. For this reason, any potential attacker must first reverse engineer the virtual machine, which may be heavily obfuscated on its own. The attacker must then understand the underlaying architecture and instruction-set before one can proceed to analyze the actual bytecode. This entire process gets even more complicated, as any two virtualization obfuscations are potentially different, making it hard to use any automated analysis tools. <cite>[1], [2]</cite>
+Since the bytecode is executed instruction by instruction, the original code is never fully visible anywhere. For this reason, any potential attacker must first reverse engineer the virtual machine, which may be heavily obfuscated on its own. The attacker must then understand the underlaying architecture and instruction-set before one can proceed to analyze the actual bytecode. This entire process gets even more complicated, as any two virtualization obfuscations are potentially different, making it hard to use any automated analysis tools. [[1](1)][[2](2)]
 
 ### Compatibility
 

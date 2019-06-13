@@ -433,30 +433,30 @@ impl std::fmt::Display for Operand {
 
 /// Contains an instruction and its operands
 ///
-/// Every instruction consists of one [instruction](enum.Instruction.html) and zero or more [operands](enum.Operand.html).
+/// Every operation consists of one [instruction](enum.Instruction.html) and zero or more [operands](enum.Operand.html).
 ///
 ///```
-/// use jsyc_compiler::{Command, Instruction, Operand};
+/// use jsyc_compiler::{Operation, Instruction, Operand};
 ///
-/// let cmd = Command::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(100)]);
+/// let cmd = Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(100)]);
 ///```
 #[derive(Debug, PartialEq, Clone)]
-pub struct Command
+pub struct Operation
 {
     pub instruction: Instruction,
     pub operands: Vec<Operand>
 }
 
-impl Command {
+impl Operation {
     pub fn new(instruction: Instruction, operands: Vec<Operand>) -> Self {
-        Command {
+        Operation {
             instruction,
             operands
         }
     }
 }
 
-impl std::fmt::Display for Command {
+impl std::fmt::Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.instruction.to_str())?;
         for operand in self.operands.iter() {
@@ -466,7 +466,7 @@ impl std::fmt::Display for Command {
     }
 }
 
-impl ToBytes for Command {
+impl ToBytes for Operation {
     fn to_bytes(&self) -> Vec<u8> {
         let mut line = vec![self.instruction.to_byte()];
         line.append(&mut self.operands.iter().map(|operand| operand.to_bytes()).flatten().collect::<Vec<u8>>());
@@ -482,21 +482,21 @@ impl ToBytes for Command {
 #[derive(Debug, PartialEq, Clone)]
 pub enum BytecodeElement
 {
-    Command(Command),
+    Operation(Operation),
     Label(Label)
 }
 
 impl ToBytes for BytecodeElement {
     fn to_bytes(&self) -> Vec<u8> {
         match self {
-            BytecodeElement::Command(cmd) => cmd.to_bytes(),
+            BytecodeElement::Operation(cmd) => cmd.to_bytes(),
             BytecodeElement::Label(_) => vec![]
         }
     }
 
     fn length_in_bytes(&self) -> usize {
         match self {
-            BytecodeElement::Command(cmd) => cmd.length_in_bytes(),
+            BytecodeElement::Operation(cmd) => cmd.length_in_bytes(),
             BytecodeElement::Label(_) => 0
         }
     }
@@ -505,14 +505,14 @@ impl ToBytes for BytecodeElement {
 /// Represents the bytecode produced by the [compiler](struct.BytecodeCompiler.html).
 ///
 /// Bytecode is a wrapper for a list of [bytecode elements](enum.BytecodeElement.html). It offers
-/// an API to extend it by other [bytecode](struct.Bytecode.html), [commands](struct.Command.html) or [labels](type.Label.html).
+/// an API to extend it by other [bytecode](struct.Bytecode.html), [commands](struct.Operation.html) or [labels](type.Label.html).
 /// ```
-/// use jsyc_compiler::{Bytecode, Command, Instruction, Operand};
+/// use jsyc_compiler::{Bytecode, Operation, Instruction, Operand};
 ///
 /// let bytecode = Bytecode::new()
-///                  .add(Command::new(Instruction::LoadNum,
+///                  .add(Operation::new(Instruction::LoadNum,
 ///                                    vec![Operand::Reg(10), Operand::ShortNum(10)]))
-///                  .add(Command::new(Instruction::Add,
+///                  .add(Operation::new(Instruction::Add,
 ///                                    vec![Operand::Reg(10), Operand::Reg(9)]));
 /// ```
 #[derive(Debug, PartialEq, Clone)]
@@ -525,7 +525,7 @@ impl std::fmt::Display for Bytecode {
         for element in self.elements.iter() {
             match element {
                 BytecodeElement::Label(label) => { write!(f, "\nlabel_{}:\n", label)?; }
-                BytecodeElement::Command(cmd) => {
+                BytecodeElement::Operation(cmd) => {
 
                     write!(f, "{}\n", cmd)?;
 
@@ -547,8 +547,8 @@ impl Bytecode {
         }
     }
 
-    pub fn add(mut self, command: Command) -> Self {
-        self.elements.push(BytecodeElement::Command(command));
+    pub fn add(mut self, command: Operation) -> Self {
+        self.elements.push(BytecodeElement::Operation(command));
         self
     }
 
@@ -573,17 +573,17 @@ impl Bytecode {
     pub fn last_op_is_return(&self) -> bool {
         match self.elements.last() {
             Some(last_element) => match last_element {
-                BytecodeElement::Command(cmd) => (cmd.instruction == Instruction::ReturnBytecodeFunc),
+                BytecodeElement::Operation(cmd) => (cmd.instruction == Instruction::ReturnBytecodeFunc),
                 _ => false
             },
             None => false
         }
     }
 
-    /// Returns an iterator over all [commands](struct.Command.html) in the bytecode.
-    pub fn commands_iter_mut(&mut self) -> impl std::iter::Iterator<Item = &mut Command> {
+    /// Returns an iterator over all [commands](struct.Operation.html) in the bytecode.
+    pub fn commands_iter_mut(&mut self) -> impl std::iter::Iterator<Item = &mut Operation> {
         self.elements.iter_mut().filter_map(|element| match element {
-            BytecodeElement::Command(cmd) => Some(cmd),
+            BytecodeElement::Operation(cmd) => Some(cmd),
             BytecodeElement::Label(_) => None
         })
     }
@@ -692,7 +692,7 @@ fn test_encode_float_num() {
 
 #[test]
 fn test_command() {
-    assert_eq!(Command{
+    assert_eq!(Operation{
         instruction: Instruction::Add,
         operands:vec![
             Operand::Reg(150),
@@ -706,21 +706,21 @@ fn test_command() {
 fn test_bytecode_to_bytes() {
     assert_eq!(Bytecode::new().to_bytes().len(), 0);
     assert_eq!(Bytecode{ elements: vec![
-        BytecodeElement::Command(Command{
+        BytecodeElement::Operation(Operation{
             instruction: Instruction::LoadNum,
             operands: vec![
                 Operand::Reg(151),
                 Operand::ShortNum(2),
             ]
         }),
-        BytecodeElement::Command(Command{
+        BytecodeElement::Operation(Operation{
             instruction: Instruction::LoadNum,
             operands: vec![
                 Operand::Reg(150),
                 Operand::ShortNum(3),
             ]
         }),
-        BytecodeElement::Command(Command{
+        BytecodeElement::Operation(Operation{
             instruction: Instruction::Mul,
             operands: vec![
                 Operand::Reg(150),
@@ -734,11 +734,11 @@ fn test_bytecode_to_bytes() {
 #[test]
 fn test_last_op_is_return() {
     assert_eq!(Bytecode::new().last_op_is_return(), false);
-    assert_eq!(Bytecode::new().add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
+    assert_eq!(Bytecode::new().add(Operation::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
     assert_eq!(Bytecode::new()
-                .add(Command::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)]))
-                .add(Command::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
+                .add(Operation::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)]))
+                .add(Operation::new(Instruction::ReturnBytecodeFunc, vec![])).last_op_is_return(), true);
     assert_eq!(Bytecode::new().add(
-            Command::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)])
+            Operation::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)])
         ).last_op_is_return(), false);
 }
