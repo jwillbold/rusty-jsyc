@@ -331,6 +331,15 @@ fn test_unary_expr() {
 }
 
 #[test]
+fn test_array_expr() {
+    run_test("var a = [0, 12.5, \"String\"]", BytecodeCompiler::new(), Bytecode::new()
+        .add(Operation::new(Instruction::LoadFloatNum, vec![Operand::Reg(1), Operand::FloatNum(12.5)]))
+        .add(Operation::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("String".into())]))
+        .add(Operation::new(Instruction::LoadArray, vec![Operand::Reg(0), Operand::RegistersArray(vec![255, 1, 2])]))
+    );
+}
+
+#[test]
 fn test_compile_js_func_call() {
     let mut compiler = BytecodeCompiler::new();
     assert!(compiler.add_var_decl("test".into()).is_ok());

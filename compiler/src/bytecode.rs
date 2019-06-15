@@ -742,3 +742,16 @@ fn test_last_op_is_return() {
             Operation::new(Instruction::Copy, vec![Operand::Reg(0), Operand::Reg(1)])
         ).last_op_is_return(), false);
 }
+
+#[test]
+fn test_format_print() {
+    let fmt = format!("{}", Bytecode::new()
+            .add(Operation::new(Instruction::LoadFloatNum, vec![Operand::Reg(1), Operand::FloatNum(12.5)]))
+            .add(Operation::new(Instruction::LoadString, vec![Operand::Reg(2), Operand::String("String".into())]))
+            .add(Operation::new(Instruction::LoadArray, vec![Operand::Reg(0), Operand::RegistersArray(vec![255, 1, 2])]))
+        );
+
+    assert_eq!(fmt, "LoadFloatNum Reg(1) Float(12.5)\n\
+                     LoadString Reg(2) String(\"String\")\n\
+                     LoadArray Reg(0) RegArray([255, 1, 2])\n".to_string());
+}

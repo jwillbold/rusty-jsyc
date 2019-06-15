@@ -31,6 +31,11 @@ function encodeRegistersArray(array)
   return encodedArray;
 }
 
+function encodeLongNum(num)
+{
+  return [(num >> 24) & 0xff, (num >> 16) & 0xff, (num >> 8) & 0xff, (num >> 0) & 0xff]
+}
+
 const testDataSet = [
   {
     name: "Empty Bytecode",
@@ -167,7 +172,8 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_NUM, 150, 60,
       OP.LOAD_NUM, 151, 6,
-      OP.CALL_BCFUNC, 19, 160, 4, 150, 152, 151, 153, // 13 is the offset of the bytecode below
+      // 22 is the offset of the bytecode function below
+      OP.CALL_BCFUNC, ...encodeLongNum(22), 160, ...encodeRegistersArray([152, 150, 153, 151]),
       OP.ADD, 160, 160, 150,
       OP.EXIT,
 
@@ -176,7 +182,7 @@ const testDataSet = [
       // b: 153
       OP.ADD, 152, 152, 153,
       OP.MUL, 152, 152, 152,
-      OP.RETURN_BCFUNC, 152
+      OP.RETURN_BCFUNC, 152, ...encodeRegistersArray([])
     ],
     expected_registers: [
       [150, 60],
@@ -221,9 +227,7 @@ function runVMTests(testData) {
 describe("VM Tests", function() {
   describe("Instructions Tests", function() {
     for(let testData of testDataSet) {
-      it(testData.name, function() {
-        runVMTests(testData);
-      });
+      it(testData.name, () => runVMTests(testData));
     }
   });
 });
