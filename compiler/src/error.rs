@@ -21,6 +21,14 @@ impl CompilerError {
     pub fn are_unsupported(error: &str) -> Self {
         CompilerError::Unsupported(format!("'{}' are not supported", error))
     }
+
+    pub fn is_unsupported_feature(&self) -> bool {
+        match self {
+            CompilerError::Parser(_) |
+            CompilerError::Custom(_) => false,
+            CompilerError::Unsupported(_) => true
+        }
+    }
 }
 
 impl std::fmt::Display for CompilerError {

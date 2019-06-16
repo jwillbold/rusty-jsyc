@@ -29,13 +29,13 @@ fn main() {
   let mut compiler = BytecodeCompiler::new();
 
   let bytecode = compiler.compile(&js_code).expect("Failed to compile code");
-  println!("bytecode: {}", bytecode);
+  println!("Bytecode: {}", bytecode);
 
   let depedencies = compiler.decl_dependencies();
-  println!("depedencies: {:?}", depedencies);
+  println!("Depedencies: {:?}", depedencies);
 
   let base64_bytecode = bytecode.encode_base64();
-  println!("base64 encoded bytecode: {}", base64_bytecode);
+  println!("Base64-encoded bytecode: {}", base64_bytecode);
 }
 ```
 

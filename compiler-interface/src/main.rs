@@ -111,7 +111,7 @@ fn main() -> CompositionResult<()> {
         let index_html_template_path = std::path::Path::new(index_html_template);
         println!("Using html template {}", index_html_template_path.display());
         let html_template = fs::read_to_string(index_html_template_path)?;
-        let index_html = html_template.replace("base64EncodedBytecode", &bytecode.encode_base64());
+        let index_html = html_template.replace("Base64EncodedBytecode", &bytecode.encode_base64());
 
         fs::write(output_dir.join(index_html_template_path.file_name()
                         .expect(&format!("{} is not a valid file path", index_html_template_path.display()))),

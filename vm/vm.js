@@ -20,8 +20,8 @@ const REGS = {
 
   // Reserved registers
   BYTECODE_PTR: 200,
-  TRASH_REG: 201,
-  BCFUNC_RETURN: 202,
+  BCFUNC_RETURN: 201,
+  TRASH_REG: 202,
 
   // Common literals
   // EMPTY_OBJ: 252,

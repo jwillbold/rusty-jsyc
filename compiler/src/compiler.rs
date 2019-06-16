@@ -64,20 +64,10 @@ impl LabelGenerator {
     }
 }
 
-/// A declaration dependency containing the identifier and the expected register
-#[derive(Clone, Debug)]
-pub struct DeclDependency {
-    pub ident: Identifier,
-    pub reg: Register
-}
-
-impl DeclDependency {
-    pub fn new(ident: Identifier, reg: Register) -> Self {
-        DeclDependency{ ident, reg }
-    }
-}
-
 /// Represents a set of declaration dependencies
+///
+/// In JavaScript there a severeal dependencies like ``document``, ``window`` or ``setInterval``.
+/// The usage these of as well as their expected register postion is tracked in this object.
 #[derive(Clone, Debug)]
 pub struct DeclDepencies {
     pub decls_decps: HashMap<Identifier, Register>

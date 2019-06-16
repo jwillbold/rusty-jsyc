@@ -123,7 +123,7 @@ impl CommonLiteralRegs {
 make_enum_helper!(
 enum ReservedeRegister {
     BytecodePointer,
-    RegistersBackup,
+    BytecodeFuncReturn,
     TrashRegister
 });
 
@@ -143,7 +143,7 @@ impl ReservedeRegisters {
             regs: ReservedeRegister::enum_iterator().map(|mp_reg| {
                 match mp_reg {
                     ReservedeRegister::BytecodePointer => scope.try_reserve_specific_reg(200),
-                    ReservedeRegister::RegistersBackup => scope.try_reserve_specific_reg(201),
+                    ReservedeRegister::BytecodeFuncReturn => scope.try_reserve_specific_reg(201),
                     ReservedeRegister::TrashRegister => scope.try_reserve_specific_reg(202),
                     ReservedeRegister::__VarinatsCountHelper__ => panic!("ReservedeRegister::__VarinatsCountHelper__")
                 }

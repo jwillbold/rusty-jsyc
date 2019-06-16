@@ -2,19 +2,14 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Snake</title>
-  <style>
-  	* { padding: 0; margin: 0; }
-  	canvas { background: #eee; display: block; margin: 0 auto; }
-  </style>
+  <title>Minimal</title>
 </head>
 <body>
-  <canvas id="canvas" width="750" height="600"></canvas>
   <script src='./vm.js'> </script>
   <script>
-  var vm = new VM();
-  vm.init("base64EncodedBytecode");
-  vm.run();
+    var vm = new VM();
+    vm.init("Base64EncodedBytecode");
+    requestIdleCallback(() => vm.run());
   </script>
 </body>
 </html>
