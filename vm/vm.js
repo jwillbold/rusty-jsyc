@@ -16,17 +16,15 @@ var FutureDeclerationsPlaceHolder = {}
 
 const REGS = {
   // External dependencies
-  WINDOW: 100,
-  // DOCUMENT: 101,
+  WINDOW: 100, // This is only for testing
 
   // Reserved registers
   BYTECODE_PTR: 200,
-  REG_BACKUP: 201,
-  RETURN_VAL: 202,
-  BCFUNC_RETURN: 203,
+  TRASH_REG: 201,
+  BCFUNC_RETURN: 202,
 
   // Common literals
-  EMPTY_OBJ: 252,
+  // EMPTY_OBJ: 252,
   VOID: 253,
   NUM_1: 254,
   NUM_0: 255,
@@ -325,7 +323,7 @@ class VM {
         throw e;
       }
     }
-    return this.regs[REGS.RETURN_VAL];
+    return 0;
   }
 
   runAt(offset) {
@@ -337,16 +335,13 @@ class VM {
   init(bytecode) {
     this.bytecode = this._decodeBytecode(bytecode);
     this.setReg(REGS.BYTECODE_PTR, 0);
-    this.setReg(REGS.RETURN_VAL, 0);
 
+    // This is only for testing
     this.setReg(REGS.WINDOW, window);
 
+    this.setReg(REGS.NUM_0, 0);
+    this.setReg(REGS.NUM_1, 1);
     this.setReg(REGS.VOID, void 0);
-    this.setReg(REGS.EMPTY_OBJ, {});
-
-    this.setReg(255, 0);
-    this.setReg(254, 1);
-    this.setReg(253, void 0);
 
     this.setReg(FutureDeclerationsPlaceHolder, 0);
   }

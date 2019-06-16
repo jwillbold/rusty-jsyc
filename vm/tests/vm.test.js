@@ -195,7 +195,7 @@ const testDataSet = [
     bytecode: [
       OP.LOAD_STRING, 150, ...encodeString("0,function(){return 66;}"),
       OP.EVAL, 150, 150,
-      OP.FUNC_CALL, 151, 150, REGS.EMPTY_OBJ, ...encodeRegistersArray([]),
+      OP.FUNC_CALL, 151, 150, 252, ...encodeRegistersArray([]),
     ],
     expected_registers: [
       [151, 66],
