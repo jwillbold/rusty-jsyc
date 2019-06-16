@@ -41,8 +41,8 @@ fn main() {
 
 In your Cargo.Toml:
 ```Toml
-[dependencies.jsyc-compiler]
-path = "path/to/rusty-jsyc/compiler"
+[dependencies]
+jsyc_compiler = "~0.1"
 ```
 
 #### Run the virtual machine
@@ -70,9 +70,9 @@ After compilation, open the index.html file in your browser.
 This was tested in Chrome 74 and Firefox 67. However, any ES6 capable browser should be compatible.
 
 ## Virtualization Obfuscation
+Virtualization obfuscation is a state-of-the-art obfuscation scheme. It obfuscates the code by compiling it into bytecode which is then executed by a virtual machine (VM). Thus, the VM gets distributed along with the compiled bytecode. It is then called with this bytecode and executes it, and is thereby executing the actual code.
 
-Virtualization obfuscation is a state-of-the-art obfuscation scheme. It obfuscates the code by first compiling it into an arbitrary instruction set which must only be understood by the virtual machine executing it. This virtual machine may exist for the sole purpose of executing this one bytecode and is thus distributed along with the compiled bytecode. The virtual machine is then called with this bytecode and executes it. Thus, the actual code is executed.
-Since the bytecode is executed instruction by instruction, the original code is never fully visible anywhere. For this reason, any potential attacker must first reverse engineer the virtual machine, which may be heavily obfuscated on its own. The attacker must then understand the underlaying architecture and instruction-set before one can proceed to analyze the actual bytecode. This entire process gets even more complicated, as any two virtualization obfuscations are potentially different, making it hard to use any automated analysis tools. [[1](1)][[2](2)]
+Since the bytecode is executed instruction by instruction, the original code is never restored anywhere. So, any potential attacker must first reverse engineer the VM, which may be heavily obfuscated, must then understand the underlying architecture and instruction-set before analyzing the actual bytecode. Since any two virtualization obfuscations are potentially different, the use of automated tools is limited. [[1](1)][[2](2)]
 
 ### Compatibility
 
@@ -118,9 +118,11 @@ This compiler currently only supports a subset of JavaScript features. Currently
 ### How to run tests
 There are several test sets in this project:
  1. Cargo tests: ``cargo test``
- 2. Node (mocha) tests:``npm install && nom test``
+ 2. Node (mocha) tests:``npm install && npm test``
 
 _____________________________________
-[1]: Rolf Rolles. Unpacking virtualization obfuscators. USENIX Workshop on Offensive Technologies (WOOT), 2009.
+[1]: http://static.usenix.org/event/woot09/tech/full_papers/rolles.pdf
+*1*: Rolf Rolles. Unpacking virtualization obfuscators. USENIX Workshop on Offensive Technologies (WOOT), 2009.
 
-[2]: Johannes Kinder. Towards static analysis of virtualization-obfuscated binaries. Reverse Engineering (WCRE), 2012 19th Working Conference.
+[2]: https://dslab.epfl.ch/pubs/staticVirtObf.pdf
+*2*: Johannes Kinder. Towards static analysis of virtualization-obfuscated binaries. Reverse Engineering (WCRE), 2012 19th Working Conference.
