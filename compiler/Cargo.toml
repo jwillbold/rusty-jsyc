@@ -6,6 +6,8 @@ edition = "2018"
 readme = "../README.md"
 license = "LGPL-3.0-only"
 
+description = "Rusty-JSYC (JavaScript bYtecode Compiler) is a JavaScript-To-Bytecode compiler written in Rust. The bytecode is meant to be used in conjunction with the provided virtual machine (https://github.com/jwillbold/rusty-jsyc/blob/master/vm/vm.js) written in JavaScript. In combination they form the components for a virtualization obfuscation."
+
 repository  = "https://github.com/jwillbold/rusty-jsyc"
 
 keywords = ["JavaScript", "Obfuscation", "Virtualization Obfuscation", "Compiler", "RESSA"]
