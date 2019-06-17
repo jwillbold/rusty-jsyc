@@ -10,7 +10,7 @@ description = "Rusty-JSYC (JavaScript bYtecode Compiler) is a JavaScript-To-Byte
 
 repository  = "https://github.com/jwillbold/rusty-jsyc"
 
-keywords = ["JavaScript", "Obfuscation", "Virtualization Obfuscation", "Compiler", "RESSA"]
+keywords = ["javascript", "obfuscation", "virtualization", "compiler"]
 categories = []
 
 [badges]
