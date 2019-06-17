@@ -4,7 +4,7 @@
 
 # Rusty-JSYC
 
-Rusty-JSYC (JavaScript bYtecode Compiler) is a JavaScript-To-Bytecode compiler written in Rust. The bytecode is meant to be used in conjunction with the provided virtual machine written in JavaScript. In combination they form the components for a virtualization obfuscation.
+Rusty-JSYC (JavaScript bYtecode Compiler) is a JavaScript-To-Bytecode compiler written in Rust. The bytecode is meant to be used in conjunction with the provided [virtual machine](https://github.com/jwillbold/rusty-jsyc/blob/master/vm/vm.js) written in JavaScript. In combination they form the components for a virtualization obfuscation.
 
 ## How to use this
 You must first compile the given JavaScript code. After that you can execute it with the provided virtual machine.
@@ -70,9 +70,9 @@ After compilation, open the index.html file in your browser.
 This was tested in Chrome 74 and Firefox 67. However, any ES6 capable browser should be compatible.
 
 ## Virtualization Obfuscation
-Virtualization obfuscation is a state-of-the-art obfuscation scheme. It obfuscates the code by compiling it into bytecode which is then executed by a virtual machine (VM). Thus, the VM gets distributed along with the compiled bytecode. It is then called with this bytecode and executes it, and is thereby executing the actual code.
+Virtualization obfuscation is a state-of-the-art obfuscation scheme. It obfuscates the code by compiling it into bytecode which is then executed by a virtual machine (VM). Thus, the VM gets distributed along with the compiled bytecode. It is then called with this bytecode and executes it and is thereby executing the actual code.
 
-Since the bytecode is executed instruction by instruction, the original code is never restored anywhere. So, any potential attacker must first reverse engineer the VM, which may be heavily obfuscated, must then understand the underlying architecture and instruction-set before analyzing the actual bytecode. Since any two virtualization obfuscations are potentially different, the use of automated tools is limited. [[1](1)][[2](2)]
+Since the bytecode is executed instruction by instruction, the original code is never restored anywhere. So, any potential attacker must first reverse engineer the VM, which may be heavily obfuscated. One must then understand the underlying architecture and instruction-set before being able to analyze the actual bytecode. Since any two virtualization obfuscations are potentially different, the use of automated tools is limited.[[1](1)][[2](2)]
 
 ### Compatibility
 
@@ -80,17 +80,17 @@ Since the bytecode is executed instruction by instruction, the original code is 
 It is possible to provide the functions defined in the virtual JavaScript context to the real JavaScript context.
 ```JavaScript
 // Compiled JavaScript
-function my_secret_function(a, b, c) { return a*b+c; }
-window.important_secret_function = my_secret_function;
+function secret_function(a, b, c) { return a*b+c; }
+window.secret_function = secret_function;
 ```
 
 ```JavaScript
 // Non-Compiled JavaScript
-var my_secret_function = window.important_secret_function;
-my_secret_function(10, 20, 1337);
+var secret_function = window.secret_function;
+secret_function(10, 20, 1337);
 ```
 
-It does not need to be ``window``, any object instance know to both contexts will work. When calling ``my_secret_function`` the virtual machine will start the execution of the corresponding bytecode chunk. Thus, calling a function this way does not reveal any more information on the implementation than just calling it inside the compiled JavaScript.
+It does not need to be ``window``, any object instance know to both contexts will work. When calling ``secret_function`` the virtual machine will start the execution of the corresponding bytecode chunk. Thus, calling a function this way does not reveal any more information on the implementation than just calling it inside the compiled JavaScript.
 
 #### Current unsound properties
 These are the properties that are not reflected by the bytecode as they would be in real JavaScript.
