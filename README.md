@@ -6,6 +6,8 @@
 
 Rusty-JSYC (JavaScript bYtecode Compiler) is a JavaScript-To-Bytecode compiler written in Rust. The bytecode is meant to be used in conjunction with the provided [virtual machine](https://github.com/jwillbold/rusty-jsyc/blob/master/vm/vm.js) written in JavaScript. In combination they form the components for a virtualization obfuscation.
 
+There is also a [blogpost](https://jwillbold.com/posts/obfuscation/2019-06-16-the-secret-guide-to-virtualization-obfuscation-in-javascript/) explaining this project and virtualization obfuscation in general.
+
 ## How to use this
 You must first compile the given JavaScript code. After that you can execute it with the provided virtual machine.
 
