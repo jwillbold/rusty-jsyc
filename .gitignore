@@ -95,3 +95,7 @@ Cargo.lock
 !**/.compiled/readme
 **/obfuscated/*
 *.local.*
+
+
+.jshintrc
+.idea
