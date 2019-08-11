@@ -1,5 +1,5 @@
 {
-  "name": "blogpost",
+  "name": "rusty-jsyc",
   "version": "0.1.0",
   "private": true,
   "author": "Johannes Willbold",
@@ -11,9 +11,7 @@
     "chai": "~4.2.0",
     "mocha": "~6.1.2"
   },
-  "description": "A blogpost about the basics of JavaScript virtualization obfuscation",
   "main": "index.js",
-  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git@git.noc.ruhr-uni-bochum.de:willbjy6/jsob-blogpost.git"
