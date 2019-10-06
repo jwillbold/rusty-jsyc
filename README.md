@@ -101,11 +101,12 @@ These are the properties that are not reflected by the bytecode as they would be
 
 #### Unsupported JavaScript syntaxes
 This compiler currently only supports a subset of JavaScript features. Currently missing are
- - Object related notations ({}, new, this, super)
+ - Object related notations ({}, new, this, super, class)
  - for-of and for-in loops
  - try and throw structures
- - break, continue, with, await, class and switch keywords
- - labels
+ - async and await keywords
+ - with, and switch keywords
+ - ~~break, continue, labels~~
  - function expressions and arrow function (Regular functions are allowed)
   - function expressions and arrow functions can be realized with:
   ```JavaScript

@@ -31,7 +31,7 @@ impl std::error::Error for CompositionError {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             _ => None
         }
