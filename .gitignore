@@ -93,7 +93,6 @@ Cargo.lock
 # For this project
 **/.compiled/*
 !**/.compiled/readme
-**/obfuscated/*
 *.local.*
 
 
