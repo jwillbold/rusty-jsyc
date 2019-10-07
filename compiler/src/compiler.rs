@@ -8,6 +8,7 @@ use crate::instruction_set::{InstructionSet, CommonLiteral, ReservedeRegister};
 use resast::prelude::*;
 use std::borrow::Borrow;
 use std::collections::{HashMap};
+use std::rc::Rc;
 
 
 #[derive(Debug, Clone)]
@@ -43,17 +44,44 @@ impl BytecodeFunction {
     }
 }
 
+#[derive(Clone)]
+struct LoopBlock {
+    start_label: Label,
+    end_label: Label
+}
+
+impl LoopBlock {
+    pub fn new(start_label: Label, end_label: Label) -> Self {
+        LoopBlock {start_label, end_label}
+    }
+
+    pub fn start_label(&self) -> Label {
+        self.start_label
+    }
+
+    pub fn end_label(&self) -> Label {
+        self.end_label
+    }
+}
 
 #[derive(Clone)]
 struct LabelGenerator
 {
-    counter: u32
+    counter: u32,
+    // js_labels: HashMap<Identifier, &'a LoopBlock>,
+    // loop_blocks: Vec<LoopBlock>,
+    js_labels: HashMap<Identifier, Rc<LoopBlock>>,
+    loop_blocks: Vec<Rc<LoopBlock>>,
+    current_js_label: Option<Identifier>
 }
 
 impl LabelGenerator {
     pub fn new() -> Self {
         LabelGenerator {
-            counter: 0
+            counter: 0,
+            js_labels: HashMap::new(),
+            loop_blocks: Vec::new(),
+            current_js_label: None,
         }
     }
 
@@ -61,6 +89,25 @@ impl LabelGenerator {
         let counter = self.counter;
         self.counter += 1;
         counter
+    }
+
+    pub fn generate_loop_label_block(&mut self) -> Rc<LoopBlock> {
+        let block = Rc::new(LoopBlock::new(self.generate_label(), self.generate_label()));
+        self.loop_blocks.push(block.clone());
+
+        if let Some(current_js_label) = &self.current_js_label {
+            self.js_labels.insert(current_js_label.to_string(), block.clone());
+        }
+
+        block
+    }
+
+    pub fn get_js_labled_block(&self, js_label: &Identifier) -> Option<&LoopBlock> {
+        self.js_labels.get(js_label).map(|x| x.borrow())
+    }
+
+    pub fn get_current_label_block(&self) -> Option<&LoopBlock> {
+        self.loop_blocks.last().map(|x| x.borrow())
     }
 }
 
@@ -109,6 +156,10 @@ pub struct BytecodeCompiler {
     label_generator: LabelGenerator,
     decl_dependencies: DeclDepencies
 }
+
+// fn testy<'xzy>(s: &'xzy mut BytecodeCompiler<'xzy>, pp: &ProgramPart) -> BytecodeResult {
+//     s.compile_program_part(pp)
+// }
 
 impl BytecodeCompiler {
 
@@ -163,9 +214,7 @@ impl BytecodeCompiler {
         let mut bytecode = match ast.ast {
             resast::Program::Mod(_) => Err(CompilerError::are_unsupported("ES6 modules")),
             resast::Program::Script(s) => {
-                s.iter().map(|part| {
-                    self.compile_program_part(part)
-                }).collect::<Result<Bytecode, CompilerError>>()
+                s.iter().map(|part| self.compile_program_part(part)).collect::<BytecodeResult>()
             },
         }?;
 
@@ -178,8 +227,8 @@ impl BytecodeCompiler {
         }
     }
 
-    fn compile_program_part(&mut self, progrm_part: &ProgramPart) -> BytecodeResult {
-        match progrm_part {
+    pub fn compile_program_part(&mut self, program_part: &ProgramPart) -> BytecodeResult {
+        match program_part {
             resast::ProgramPart::Dir(_) => Err(CompilerError::are_unsupported("Directives")),
             resast::ProgramPart::Decl(decl) => self.compile_decl(&decl),
             resast::ProgramPart::Stmt(stmt) => self.compile_stmt(&stmt)
@@ -220,26 +269,26 @@ impl BytecodeCompiler {
         }).collect()
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) -> BytecodeResult{
+    fn compile_stmt(&mut self, stmt: &Stmt) -> BytecodeResult {
         match stmt {
             Stmt::Expr(expr) => self.compile_expr(&expr, self.isa.reserved_reg(&ReservedeRegister::TrashRegister)),
             Stmt::Block(stmts) => stmts.iter().map(|part| self.compile_program_part(part)).collect(),
             Stmt::Empty => Ok(Bytecode::new()),
-            Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statments")),
-            Stmt::With(_) => Err(CompilerError::are_unsupported("'with' statments")),
+            Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statements")),
+            Stmt::With(_) => Err(CompilerError::are_unsupported("'with' statements")),
             Stmt::Return(ret) => self.compile_return_stmt(ret),
-            Stmt::Labeled(_) => Err(CompilerError::are_unsupported("Label statments")),
-            Stmt::Break(_) => Err(CompilerError::are_unsupported("'break' statments")),
-            Stmt::Continue(_) => Err(CompilerError::are_unsupported("'continue' statments")),
+            Stmt::Labeled(labeled_stmt) => self.compile_label_stmt(labeled_stmt),
+            Stmt::Break(break_stmt) => self.compile_break_stmt(break_stmt),
+            Stmt::Continue(continue_stmt) => self.compile_continue_stmt(continue_stmt),
             Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt),
-            Stmt::Switch(_) => Err(CompilerError::are_unsupported("'switch' statments")),
-            Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statments")),
-            Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statments")),
+            Stmt::Switch(_) => Err(CompilerError::are_unsupported("'switch' statements")),
+            Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statements")),
+            Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statements")),
             Stmt::While(while_stmt) => self.compile_while_stmt(while_stmt),
             Stmt::DoWhile(dowhile_stmt) => self.compile_dowhile_stmt(dowhile_stmt),
             Stmt::For(for_stmt) => self.compile_for_stmt(for_stmt),
-            Stmt::ForIn(_) => Err(CompilerError::are_unsupported("for-in statments")),
-            Stmt::ForOf(_) => Err(CompilerError::are_unsupported("for-of statments")),
+            Stmt::ForIn(_) => Err(CompilerError::are_unsupported("for-in statements")),
+            Stmt::ForOf(_) => Err(CompilerError::are_unsupported("for-of statements")),
             Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
         }
     }
@@ -262,13 +311,52 @@ impl BytecodeCompiler {
         )
     }
 
+    fn compile_label_stmt(&mut self, labeled: &LabeledStmt) -> BytecodeResult {
+        self.label_generator.current_js_label = Some(labeled.label.clone()); // TODO no clone
+
+        self.compile_stmt(labeled.body.borrow())
+    }
+
+    fn try_get_block_with_maybe_js_label(&self, js_label: &Option<Identifier>) -> CompilerResult<&LoopBlock> {
+        match js_label {
+            Some(label) => {
+                if let Some(loop_block) = self.label_generator.get_js_labled_block(label) {
+                    Ok(loop_block)
+                } else {
+                    Err(CompilerError::Custom("Used to unknown label".into()))
+                }
+            },
+            None => {
+                if let Some(loop_block) = self.label_generator.get_current_label_block() {
+                    Ok(loop_block)
+                } else {
+                    Err(CompilerError::Custom("Used break/continue while not in a loop-block".into()))
+                }
+            }
+        }
+    }
+
+    fn compile_break_stmt(&mut self, break_stmt: &Option<Identifier>) -> BytecodeResult {
+        let maybe_block = self.try_get_block_with_maybe_js_label(break_stmt);
+
+        maybe_block.map(|block| Bytecode::new().add(Operation::new(Instruction::Jump, vec![
+            Operand::branch_addr(block.end_label())])))
+    }
+
+    fn compile_continue_stmt(&mut self, continue_stmt: &Option<Identifier>) -> BytecodeResult {
+        let maybe_block = self.try_get_block_with_maybe_js_label(continue_stmt);
+
+        maybe_block.map(|block| Bytecode::new().add(Operation::new(Instruction::Jump, vec![
+            Operand::branch_addr(block.start_label())])))
+    }
+
     fn compile_if_stmt(&mut self, if_stmt: &IfStmt) -> BytecodeResult {
         let (test_bytecode, test_reg) = self.maybe_compile_expr(&if_stmt.test, None)?;
 
-        let if_branch_bc = self.compile_stmt(if_stmt.consequent.borrow())?;
-
         let if_branch_end_label = self.label_generator.generate_label();
         let else_branch_end_label = self.label_generator.generate_label();
+
+        let if_branch_bc = self.compile_stmt(if_stmt.consequent.borrow())?;
 
         let bytecode = test_bytecode
                 .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(if_branch_end_label)]))
@@ -293,8 +381,9 @@ impl BytecodeCompiler {
     fn compile_while_stmt(&mut self, while_stmt: &WhileStmt) -> BytecodeResult {
         let (test_bc, test_reg) = self.maybe_compile_expr(&while_stmt.test, None)?;
 
-        let while_cond_label = self.label_generator.generate_label();
-        let while_end_label = self.label_generator.generate_label();
+        let while_block = self.label_generator.generate_loop_label_block();
+        let while_cond_label = while_block.start_label();
+        let while_end_label = while_block.end_label();
 
         Ok(test_bc
             .add_label(while_cond_label)
@@ -308,13 +397,15 @@ impl BytecodeCompiler {
         let body_bc = self.compile_stmt(dowhile_stmt.body.borrow())?;
         let (test_bc, test_reg) = self.maybe_compile_expr(&dowhile_stmt.test, None)?;
 
-        let dowhile_start_label = self.label_generator.generate_label();
+        let dowhile_block = self.label_generator.generate_loop_label_block();
+        let dowhile_start_label = dowhile_block.start_label();
 
         Ok(Bytecode::new()
             .add_label(dowhile_start_label)
             .add_bytecode(body_bc)
             .add_bytecode(test_bc)
-            .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)])))
+            .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(test_reg), Operand::branch_addr(dowhile_start_label)]))
+            .add_label(dowhile_block.end_label()))
     }
 
     fn compile_for_stmt(&mut self, for_stmt: &ForStmt) -> BytecodeResult {
@@ -326,15 +417,17 @@ impl BytecodeCompiler {
             None => Bytecode::new()
         };
 
-        let loop_start_label = self.label_generator.generate_label();
-        let loop_end_label = self.label_generator.generate_label();
+        let for_block = self.label_generator.generate_loop_label_block();
+        let loop_start_label = for_block.start_label();
+        let loop_end_label = for_block.end_label();
 
         let test_bc = match &for_stmt.test {
             Some(test_expr) => {
                 let (test_bc, test_reg) = self.maybe_compile_expr(&test_expr, None)?;
 
                 test_bc
-                    .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
+                    .add(Operation::new(Instruction::JumpCondNeg,
+                            vec![Operand::Reg(test_reg), Operand::branch_addr(loop_end_label)]))
             }
             None => Bytecode::new()
         };

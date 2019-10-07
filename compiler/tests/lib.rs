@@ -190,11 +190,12 @@ fn test_jump_stmts() {
         .add_label(1)
     );
 
-     run_test("var a = true; do{a=false;}while(a)", BytecodeCompiler::new(), Bytecode::new()
+    run_test("var a = true; do{a=false;}while(a)", BytecodeCompiler::new(), Bytecode::new()
         .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
         .add_label(0)
         .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(0)]))
         .add(Operation::new(Instruction::JumpCond, vec![Operand::Reg(0), Operand::LongNum(3)]))
+        .add_label(1)
     );
 
     run_test("var a = 10; for(var i = 0; i < 10; ++i){++a} --i;", BytecodeCompiler::new(), Bytecode::new()
@@ -257,6 +258,65 @@ fn test_jump_stmts() {
         .add(Operation::new(Instruction::Add, vec![Operand::Reg(0), Operand::Reg(0), Operand::Reg(254)]))
         // Update
         .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(3)]))
+        .add_label(1)
+    );
+
+    let break_testcase_bytecode = Bytecode::new()
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(1)]))
+        .add_label(0)
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(1), Operand::LongNum(28)]))
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(0), Operand::LongNum(23)]))
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(28)]))
+        .add_label(2) // If block end label
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1); // while block end label
+
+    // Test 'break'
+    run_test("var b = true; while(true) { if(b) {break;} }", BytecodeCompiler::new(),
+             break_testcase_bytecode.clone());
+
+    // Test labeled 'break', should be equal to last testcase
+    run_test("var b = true; foo: while(true) { if(b) {break;} }", BytecodeCompiler::new(),
+             break_testcase_bytecode);
+
+    // Test 'continue'
+    run_test("var b = true; while(true) { if(b) {continue;} }", BytecodeCompiler::new(), Bytecode::new()
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(1)]))
+        .add_label(0)
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(1), Operand::LongNum(28)]))
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(0), Operand::LongNum(23)]))
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(2) // If block end label
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1) // while block end label
+    );
+
+    // Test labeled 'continue'
+    run_test("var b = true; foo: while(true) { var x = 0; for(;;) { if(b) {continue;} } }", BytecodeCompiler::new(), Bytecode::new()
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(0), Operand::ShortNum(1)]))
+        .add(Operation::new(Instruction::LoadNum, vec![Operand::Reg(1), Operand::ShortNum(1)]))
+        .add_label(0)
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(1), Operand::LongNum(36)]))
+        .add(Operation::new(Instruction::Copy, vec![Operand::Reg(2), Operand::Reg(255)]))
+        .add_label(2)
+        .add(Operation::new(Instruction::JumpCondNeg, vec![Operand::Reg(0), Operand::LongNum(26)]))
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(15)]))
+        .add_label(4) // If block end label
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(15)]))
+        .add_label(3)
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(6)]))
+        .add_label(1) // while block end label
+    );
+
+    run_test("outer: for(;;){ for(;;) {break outer;} }", BytecodeCompiler::new(), Bytecode::new()
+        .add_label(0)
+        .add_label(2)
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(10)])) // break jump
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(0)]))
+        .add_label(3)
+        .add(Operation::new(Instruction::Jump, vec![Operand::LongNum(0)]))
         .add_label(1)
     );
 }
@@ -413,8 +473,6 @@ fn test_unsupported_exprs() {
 
 #[test]
 fn test_unsupported_stmts() {
-    check_is_unsupported_error("while(true) { break; }", BytecodeCompiler::new());
-    check_is_unsupported_error("while(true) { continue; }", BytecodeCompiler::new());
     check_is_unsupported_error("switch (x) { case 0: ;}", BytecodeCompiler::new());
 
     check_is_unsupported_error("throw 0;", BytecodeCompiler::new());
