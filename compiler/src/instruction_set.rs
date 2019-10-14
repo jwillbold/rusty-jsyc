@@ -195,7 +195,8 @@ impl InstructionSet {
             Operand::RegistersArray(_) => unimplemented!("Register Arrays are not yet implement as seperte load operation"),
             Operand::FunctionAddr(_) |
             Operand::BranchAddr(_) |
-            Operand::FunctionArguments(_) => unimplemented!("...")
+            Operand::FunctionArguments(_) |
+            Operand::BytecodeEnd => unimplemented!("...")
         };
 
         Operation::new(instruction, vec![Operand::Reg(left), right])

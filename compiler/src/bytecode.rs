@@ -39,6 +39,8 @@ pub enum Instruction
     Exit,
     BytecodeFuncCallback,
     PropertySet,
+    Try,
+    Throw,
 
     JumpCond,
     Jump,
@@ -87,6 +89,8 @@ impl Instruction {
             Instruction::JumpCondNeg => 19,
             Instruction::BytecodeFuncCallback => 20,
             Instruction::PropertySet => 21,
+            Instruction::Try => 22,
+            Instruction::Throw => 23,
 
             Instruction::CompEqual => 50,
             Instruction::CompNotEqual => 51,
@@ -124,6 +128,8 @@ impl Instruction {
             Instruction::JumpCondNeg => "JumpCondNeg",
             Instruction::BytecodeFuncCallback => "BytecodeFuncCallback",
             Instruction::PropertySet => "PropertySet",
+            Instruction::Try => "Try",
+            Instruction::Throw => "Throw",
 
             Instruction::CompEqual => "CompEqual",
             Instruction::CompNotEqual => "CompNotEqual",
@@ -268,7 +274,7 @@ impl std::fmt::Display for BytecodeLiteral {
     }
 }
 
-/// Represents variants of bytecode operand
+/// Represents variants of bytecode operands
 ///
 /// There are two types of operands. Regular operands(numbers, strings or registers) and token operands.
 /// Token operands are only used by the compiler to express a dependency that cannot be calculated
@@ -290,6 +296,7 @@ pub enum Operand
     FunctionAddr(BytecodeAddrToken),
     BranchAddr(LabelAddrToken),
     FunctionArguments(FunctionArguments),
+    BytecodeEnd
 }
 
 impl Operand {
@@ -396,6 +403,7 @@ impl ToBytes for Operand {
             Operand::FunctionAddr(token)  => token.to_bytes(),
             Operand::BranchAddr(token) => token.to_bytes(),
             Operand::FunctionArguments(args) => args.to_bytes(),
+            Operand::BytecodeEnd => vec![0; 4]
         }
     }
 
@@ -410,6 +418,7 @@ impl ToBytes for Operand {
             Operand::FunctionAddr(token) => token.length_in_bytes(),
             Operand::BranchAddr(token) => token.length_in_bytes(),
             Operand::FunctionArguments(args) => args.length_in_bytes(),
+            Operand::BytecodeEnd => 4
         }
     }
 }
@@ -427,6 +436,7 @@ impl std::fmt::Display for Operand {
             Operand::FunctionAddr(bc_addr_token) => write!(f, "FunctionAddr({:?})", bc_addr_token),
             Operand::BranchAddr(label_addr_token) => write!(f, "BranchAddr({:?})", label_addr_token),
             Operand::FunctionArguments(args) => write!(f, "FunctionArguments({:?})", args),
+            Operand::BytecodeEnd => write!(f, "BytecodeEnd"),
         }
     }
 }

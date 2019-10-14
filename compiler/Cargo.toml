@@ -19,5 +19,6 @@ codecov = { repository = "jwillbold/rusty-jsyc", branch = "master", service = "g
 
 [dependencies]
 ressa = "~0.5.2"
-resast = "~0.2.1"
+# resast = "~0.4"
+resast = "0.2.1"
 base64 = "~0.10"

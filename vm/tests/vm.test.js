@@ -200,6 +200,84 @@ const testDataSet = [
     expected_registers: [
       [151, 66],
     ]
+  },
+  // { // TODO: This should work, but it requires 'null' to work
+  //   // currently, 'null' is recognized as identifier by ressa
+  //   name: "Try-Throw",
+  //   init_regeisters: [
+  //     [0, console],
+  //     [1, JSON],
+  //     [2, Object]
+  //   ],
+  //   bytecode: [
+  //     OP.TRY, 7, ...encodeLongNum(49), ...encodeLongNum(72),
+  //     OP.LOAD_STRING, 4, ...encodeString('{"x": 100}'),
+  //     OP.LOAD_STRING, 6, ...encodeString("parse"),
+  //     OP.PROPACCESS, 5, 1, 6,
+  //     OP.FUNC_CALL, 3, 5, 1, ...encodeRegistersArray([4]),
+  //     OP.LOAD_LONG_NUM, 200, ...encodeLongNum(98),
+  //     OP.LOAD_STRING, 9, ...encodeString("log"),
+  //     OP.PROPACCESS, 8, 0, 9,
+  //     OP.FUNC_CALL, 202, 8, 0, ...encodeRegistersArray([7]),
+  //     OP.LOAD_LONG_NUM, 200, ...encodeLongNum(98),
+  //     OP.LOAD_STRING, 8, ...encodeString("create"),
+  //     OP.PROPACCESS, 7, 2, 8,
+  //     OP.FUNC_CALL, 3, 7, 2, ...encodeRegistersArray([9]),
+  //     OP.LOAD_LONG_NUM, 200, ...encodeLongNum(98)
+  //   ],
+  //   expected_registers: [
+  //     [2, {x: 100}]
+  //   ]
+  // }
+  {
+    name: "Try-Throw (no-throw)",
+    init_regeisters: [
+      [0, console],
+      [1, JSON],
+      [2, {}]
+    ],
+    bytecode: [
+      OP.TRY, 7, ...encodeLongNum(49), ...encodeLongNum(58),
+      OP.LOAD_STRING, 4, ...encodeString('{"x": 100}'),
+      OP.LOAD_STRING, 6, ...encodeString("parse"),
+      OP.PROPACCESS, 5, 1, 6,
+      OP.FUNC_CALL, 3, 5, 1, ...encodeRegistersArray([4]),
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(81),
+      OP.COPY, 3, 2,
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(81),
+      OP.LOAD_STRING, 8, ...encodeString("log"),
+      OP.PROPACCESS, 7, 0, 8,
+      OP.FUNC_CALL, 202, 7, 0, ...encodeRegistersArray([3]),
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(81)
+    ],
+    expected_registers: [
+      [3, {x: 100}]
+    ]
+  },
+  {
+    name: "Try-Throw (throw)",
+    init_regeisters: [
+      [0, console],
+      [1, JSON],
+      [2, {}]
+    ],
+    bytecode: [
+      OP.TRY, 7, ...encodeLongNum(57), ...encodeLongNum(66),
+      OP.LOAD_STRING, 4, ...encodeString('{invalid, invalid}'),
+      OP.LOAD_STRING, 6, ...encodeString("parse"),
+      OP.PROPACCESS, 5, 1, 6,
+      OP.FUNC_CALL, 3, 5, 1, ...encodeRegistersArray([4]),
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(89),
+      OP.COPY, 3, 2,
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(89),
+      OP.LOAD_STRING, 8, ...encodeString("log"),
+      OP.PROPACCESS, 7, 0, 8,
+      OP.FUNC_CALL, 202, 7, 0, ...encodeRegistersArray([3]),
+      OP.LOAD_LONG_NUM, 200, ...encodeLongNum(89)
+    ],
+    expected_registers: [
+      [3, {}]
+    ]
   }
 ]
 
@@ -211,6 +289,15 @@ function runVMTests(testData) {
   }
 
   var vm = new VM();
+
+  if(typeof testData.init_regeisters !== "undefined") {
+    // console.log(testData.init_regeisters[1]);
+    for(let reg_init of testData.init_regeisters) {
+      // console.log(reg_init);
+      vm.setReg(reg_init[0], reg_init[1])
+    }
+  }
+
   vm.init(encodedBytecode);
 
   const result = vm.run();

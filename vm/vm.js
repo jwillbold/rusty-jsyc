@@ -51,6 +51,8 @@ const OP = {
   JUMP_COND_NEG: 19,
   BCFUNC_CALLBACK: 20,
   PROPSET: 21,
+  TRY: 22,
+  THROW: 23,
 
   // Comparisons
   COMP_EQUAL: 50,
@@ -117,6 +119,26 @@ class VM {
 
       dstObj[dstProp] = val;
     };
+
+    this.ops[OP.TRY] = function(vm) {
+      var catchBlockExceptReg = vm.getByte();
+      var catchBlockOffset = vm._loadLongNum();
+      var finallyBlockOffset = vm._loadLongNum();
+
+      try {
+        vm.run();
+      } catch(e) {
+        vm.setReg(catchBlockExceptReg, e);
+        vm.runAt(catchBlockOffset);
+      } finally {
+        vm.runAt(finallyBlockOffset);
+      }
+    }
+
+    this.ops[OP.THROW] = function(vm) {
+      var reg = vm.getByte();
+      throw vm.getReg(reg);
+    }
 
     this.ops[OP.FUNC_CALL] = function(vm) {
       var dst = vm.getByte(), func = vm.getByte(), funcThis = vm.getByte(),
@@ -209,7 +231,7 @@ class VM {
         for(let i = 0; i<arg_regs.length; ++i) {
           vm.setReg(arg_regs[i], arguments[i]);
         }
-        vm.runAt(func_offset)
+        vm.runFuncAt(func_offset)
       });
     }
 
@@ -326,8 +348,12 @@ class VM {
     return 0;
   }
 
-  runAt(offset) {
+  runFuncAt(offset) {
     this.reg_backups.push([this.regs.slice(), REGS.BCFUNC_RETURN]);
+    this.runAt(offset);
+  }
+
+  runAt(offset) {
     this.setReg(REGS.BYTECODE_PTR, offset);
     this.run();
   }
