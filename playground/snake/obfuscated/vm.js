@@ -246,12 +246,12 @@ class VM {
         this.setReg(REGS.NUM_0, 0);
         this.setReg(REGS.NUM_1, 1);
         this.setReg(REGS.VOID, void 0);
+        this.setReg(47, clearInterval);
         this.setReg(2, document);
         this.setReg(76, Object);
         this.setReg(46, setInterval);
-        this.setReg(20, Math);
         this.setReg(108, requestAnimationFrame);
-        this.setReg(47, clearInterval);
+        this.setReg(20, Math);
     }
 
     _decodeBytecode(encodedBytecode){

@@ -1,7 +1,9 @@
-use crate::errors::{CompositionError, CompositionResult};
-
 use jsyc_compiler::{Bytecode, JSSourceCode, JSAst, DeclDepencies};
 use resast::prelude::*;
+
+use crate::errors::{CompositionError, CompositionResult};
+use crate::options::{Options, VMExportType};
+
 
 #[derive(Debug, PartialEq)]
 pub struct VM {
@@ -114,23 +116,56 @@ impl VM {
             }).collect()
         })
     }
+
+    pub fn append_export_stmt(&mut self, export_types: &VMExportType) {
+        use resast::*;
+        self.vm_template.push(match export_types {
+            VMExportType::NodeJS => {
+                ProgramPart::Stmt(Stmt::Expr(Expr::Assignment(AssignmentExpr{
+                    operator: AssignmentOperator::Equal,
+                    left: AssignmentLeft::Expr(Box::new(Expr::Member(MemberExpr{
+                        object: Box::new(Expr::Ident("module".into())),
+                        property: Box::new(Expr::Ident("exports".into())),
+                        computed: false
+                    }))),
+                    right: Box::new(Expr::Ident("VM".into()))
+                })))
+            },
+            VMExportType::ES6 => {
+                ProgramPart::Decl(Decl::Export(Box::new(ModExport::Named(NamedExportDecl::Specifier(
+                    vec![ExportSpecifier::new("VM".into(), None)],
+                    None
+                )))))
+            }
+        });
+    }
+
+
 }
 
-pub struct Composer {
+pub struct Composer<'a> {
     vm: VM,
-    bytecode: Bytecode
+    bytecode: Bytecode,
+    options: &'a Options
 }
 
-impl Composer {
-    pub fn new(vm: VM, bytecode: Bytecode) -> Self {
+impl<'a> Composer<'a> {
+    pub fn new(vm: VM, bytecode: Bytecode, options: &'a Options) -> Self {
         Composer {
             vm,
-            bytecode
+            bytecode,
+            options
         }
     }
 
     pub fn compose(self, decls_deps: &DeclDepencies) -> CompositionResult<(VM, Bytecode)> {
-        Ok((self.vm.inject_decleration_dependencies(decls_deps)?.strip_unneeded()?, self.bytecode))
+        let mut vm = self.vm.inject_decleration_dependencies(decls_deps)?.strip_unneeded()?;
+
+        if let Some(export_type) = &self.options.vm_options.export_type {
+            vm.append_export_stmt(export_type);
+        }
+
+        Ok((vm, self.bytecode))
     }
 }
 
