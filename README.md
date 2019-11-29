@@ -103,9 +103,9 @@ These are the properties that are not reflected by the bytecode as they would be
 This compiler currently only supports a subset of JavaScript features. Currently missing are
  - Object related notations ({}, new, this, super, class)
  - for-of and for-in loops
- - try and throw structures
  - async and await keywords
  - with, and switch keywords
+ - ~~try and throw structures~~
  - ~~break, continue, labels~~
  - function expressions and arrow function (Regular functions are allowed)
   - function expressions and arrow functions can be realized with:
