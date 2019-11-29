@@ -36,6 +36,11 @@ function encodeLongNum(num)
   return [(num >> 24) & 0xff, (num >> 16) & 0xff, (num >> 8) & 0xff, (num >> 0) & 0xff]
 }
 
+var window = {
+  document: {},
+  String: String
+}
+
 const testDataSet = [
   {
     name: "Empty Bytecode",
@@ -297,6 +302,9 @@ function runVMTests(testData) {
       vm.setReg(reg_init[0], reg_init[1])
     }
   }
+
+  vm.atob = require("atob");
+  vm.setReg(REGS.WINDOW, window);
 
   vm.init(encodedBytecode);
 

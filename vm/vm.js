@@ -1,18 +1,4 @@
-if(typeof window == "undefined") {
-   var window = {};
-}
-if(window.document === void 0) {
-  window.document = {};
-}
-if(window.String === void 0) {
-  window.String = String;
-}
-if(window.atob === void 0) {
-  window.atob = require('atob');
-}
-
 var FutureDeclerationsPlaceHolder = {}
-
 
 const REGS = {
   // External dependencies
@@ -78,6 +64,9 @@ class VM {
     this.ops = [];
     this.reg_backups = [];
     this.modified_regs = [];
+    try {
+      this.atob = window.atob;
+    } catch(e) {}
 
     this.ops[OP.LOAD_STRING] = function(vm) {
       var dst = vm.getByte(), str = vm._loadString();
@@ -362,9 +351,6 @@ class VM {
     this.bytecode = this._decodeBytecode(bytecode);
     this.setReg(REGS.BYTECODE_PTR, 0);
 
-    // This is only for testing
-    this.setReg(REGS.WINDOW, window);
-
     this.setReg(REGS.NUM_0, 0);
     this.setReg(REGS.NUM_1, 1);
     this.setReg(REGS.VOID, void 0);
@@ -373,7 +359,7 @@ class VM {
   }
 
   _decodeBytecode(encodedBytecode) {
-    var bytecode = window.atob(encodedBytecode);
+    var bytecode = this.atob(encodedBytecode);
     var bytes = [];
     var byteCounter = 0;
     for (var i = 0; i < bytecode.length; i++){
@@ -469,5 +455,4 @@ module.exports = function() {
     this.REGS = REGS;
     this.OP = OP;
     this.VM = VM;
-    this.window = window;
 }
