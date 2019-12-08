@@ -1,6 +1,6 @@
 const REGS = {WINDOW: 100, BYTECODE_PTR: 200, BCFUNC_RETURN: 201, TRASH_REG: 202, VOID: 253, NUM_1: 254, NUM_0: 255};
 
-const OP = {LOAD_STRING: 1, LOAD_NUM: 2, LOAD_FLOAT: 3, LOAD_LONG_NUM: 4, LOAD_ARRAY: 5, PROPACCESS: 10, FUNC_CALL: 11, EVAL: 12, CALL_BCFUNC: 13, RETURN_BCFUNC: 14, COPY: 15, EXIT: 16, COND_JUMP: 17, JUMP: 18, JUMP_COND_NEG: 19, BCFUNC_CALLBACK: 20, PROPSET: 21, COMP_EQUAL: 50, COMP_NOT_EQUAL: 51, COMP_STRICT_EQUAL: 52, COMP_STRICT_NOT_EQUAL: 53, COMP_LESS_THAN: 54, COMP_GREATHER_THAN: 55, COMP_LESS_THAN_EQUAL: 56, COMP_GREATHER_THAN_EQUAL: 57, ADD: 100, MUL: 101, MINUS: 102, DIV: 103};
+const OP = {LOAD_STRING: 1, LOAD_NUM: 2, LOAD_FLOAT: 3, LOAD_LONG_NUM: 4, LOAD_ARRAY: 5, PROPACCESS: 10, FUNC_CALL: 11, EVAL: 12, CALL_BCFUNC: 13, RETURN_BCFUNC: 14, COPY: 15, EXIT: 16, COND_JUMP: 17, JUMP: 18, JUMP_COND_NEG: 19, BCFUNC_CALLBACK: 20, PROPSET: 21, TRY: 22, THROW: 23, COMP_EQUAL: 50, COMP_NOT_EQUAL: 51, COMP_STRICT_EQUAL: 52, COMP_STRICT_NOT_EQUAL: 53, COMP_LESS_THAN: 54, COMP_GREATHER_THAN: 55, COMP_LESS_THAN_EQUAL: 56, COMP_GREATHER_THAN_EQUAL: 57, ADD: 100, MUL: 101, MINUS: 102, DIV: 103};
 
 class VM {
 
@@ -42,6 +42,24 @@ class VM {
             dstProp = vm.getReg(dstProp);
             val = vm.getReg(val);
             dstObj[dstProp] = val;
+        };
+        this.ops[OP.TRY] = function(vm) {
+            var catchBlockExceptReg = vm.getByte();
+            var catchBlockOffset = vm._loadLongNum();
+            var finallyBlockOffset = vm._loadLongNum();
+            try {
+                vm.run();
+            } catch (e) {
+                vm.setReg(catchBlockExceptReg, e);
+
+                vm.runAt(catchBlockOffset);
+            } finally {
+                vm.runAt(finallyBlockOffset);
+            }
+        };
+        this.ops[OP.THROW] = function(vm) {
+            var reg = vm.getByte();
+            throw vm.getReg(reg);
         };
         this.ops[OP.FUNC_CALL] = function(vm) {
             var dst = vm.getByte(), func = vm.getByte(), funcThis = vm.getByte(), args = vm._loadArrayFromRegister();
@@ -113,7 +131,7 @@ class VM {
                 for (let i = 0;i < arg_regs.length;++i) {
                     vm.setReg(arg_regs[i], arguments[i]);
                 }
-                vm.runAt(func_offset);
+                vm.runFuncAt(func_offset);
             });
         };
         this.ops[OP.COMP_EQUAL] = function(vm) {
@@ -211,8 +229,12 @@ class VM {
         return 0;
     }
 
-    runAt(offset){
+    runFuncAt(offset){
         this.reg_backups.push([this.regs.slice(), REGS.BCFUNC_RETURN]);
+        this.runAt(offset);
+    }
+
+    runAt(offset){
         this.setReg(REGS.BYTECODE_PTR, offset);
         this.run();
     }
@@ -224,12 +246,12 @@ class VM {
         this.setReg(REGS.NUM_0, 0);
         this.setReg(REGS.NUM_1, 1);
         this.setReg(REGS.VOID, void 0);
-        this.setReg(2, document);
-        this.setReg(20, Math);
-        this.setReg(76, Object);
-        this.setReg(108, requestAnimationFrame);
-        this.setReg(46, setInterval);
         this.setReg(47, clearInterval);
+        this.setReg(2, document);
+        this.setReg(76, Object);
+        this.setReg(46, setInterval);
+        this.setReg(108, requestAnimationFrame);
+        this.setReg(20, Math);
     }
 
     _decodeBytecode(encodedBytecode){

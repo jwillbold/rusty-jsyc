@@ -3,6 +3,38 @@ extern crate jsyc_compiler;
 use jsyc_compiler::*;
 use jshelper::{JSSourceCode};
 
+macro_rules! reg {
+    ($r:expr) => { Operand::Reg($r) };
+}
+
+macro_rules! reg_arr {
+    ( $($x:expr),* ) => { Operand::RegistersArray(vec![$($x),*]) };
+}
+
+macro_rules! string {
+    ($s:expr) => { Operand::String($s.into()) };
+}
+
+// macro_rules! float_num {
+//     ($f:expr) => { Operand::FloatNum($f) };
+// }
+
+macro_rules! short_num {
+    ($n:expr) => { Operand::ShortNum($n) };
+}
+
+macro_rules! long_num {
+    ($n:expr) => { Operand::LongNum($n) };
+}
+
+macro_rules! addr {
+    ($n:expr) => { Operand::LongNum($n) };
+}
+
+macro_rules! op {
+    ($instr:ident, $($operands:expr),*) => { Operation::new(Instruction::$instr, vec![$($operands),*]) };
+}
+
 
 #[cfg(test)]
 fn run_test(js_code: &str, mut compiler: compiler::BytecodeCompiler, expected_bc: Bytecode) {
@@ -63,6 +95,11 @@ fn test_compile_js_decls() {
     run_test("var s = \"Hello World\";", BytecodeCompiler::new(), Bytecode::new()
         .add(Operation::new(Instruction::LoadString, vec![Operand::Reg(0), Operand::String("Hello World".into())]))
     );
+
+    // TODO: null !== undefined
+    // run_test("var xxx = null;", BytecodeCompiler::new(), Bytecode::new()
+    //     .add(op!(LoadNum, reg!(0), reg!(253)))
+    // );
 
     run_test("function foo() {}", BytecodeCompiler::new(), Bytecode::new()
         .add(Operation::new(Instruction::Exit, vec![]))
@@ -453,33 +490,114 @@ fn test_compile_js_func_call() {
 }
 
 #[test]
+fn test_try_throw() {
+    // let mut compiler_with_json = BytecodeCompiler::new();
+    // assert!(compiler_with_json.add_var_decl("console".into()).is_ok());
+    // assert!(compiler_with_json.add_var_decl("JSON".into()).is_ok());
+    // assert!(compiler_with_json.add_var_decl("Object".into()).is_ok());
+    //
+    // run_test("var j; try{ var s = '{}'; j = JSON.parse(s); }\
+    //          catch(e){ console.log(e); }\
+    //          finally{ j = Object.create(null); }",
+    //          compiler_with_json.clone(),
+    //          Bytecode::new()
+    //             .add(op!(Try, reg!(7), long_num!(41), long_num!(64)))
+    //             .add(op!(LoadString, reg!(4), string!("{}")))
+    //             .add(op!(LoadString, reg!(6), string!("parse")))
+    //             .add(op!(PropAccess, reg!(5), reg!(1), reg!(6)))
+    //             .add(op!(CallFunc, reg!(3), reg!(5), reg!(1), reg_arr!(4)))
+    //             .add(op!(LoadNum, reg!(200), long_num!(90)))
+    //             .add_label(0)
+    //             .add(op!(LoadString, reg!(9), string!("log")))
+    //             .add(op!(PropAccess, reg!(8), reg!(0), reg!(9)))
+    //             .add(op!(CallFunc, reg!(202), reg!(8), reg!(0), reg_arr!(7)))
+    //             .add(op!(LoadNum, reg!(200), long_num!(90)))
+    //             .add_label(1)
+    //             .add(op!(LoadString, reg!(8), string!("create")))
+    //             .add(op!(PropAccess, reg!(7), reg!(2), reg!(8)))
+    //             .add(op!(CallFunc, reg!(3), reg!(7), reg!(2), reg_arr!(9)))
+    //             .add(op!(LoadNum, reg!(200), long_num!(90)))
+    // );
+
+    let mut compiler_with_json = BytecodeCompiler::new();
+    assert!(compiler_with_json.add_var_decl("console".into()).is_ok());
+    assert!(compiler_with_json.add_var_decl("JSON".into()).is_ok());
+    assert!(compiler_with_json.add_var_decl("empty_object".into()).is_ok());
+
+    run_test("var x; try{ var s = '{\"x\": 100}'; x = JSON.parse(s); }\
+             catch(e){ x = empty_object; }\
+             finally{ console.log(x); }",
+             compiler_with_json.clone(),
+             Bytecode::new()
+                .add(op!(Try, reg!(7), long_num!(49), long_num!(58)))
+                .add(op!(LoadString, reg!(4), string!("{\"x\": 100}")))
+                .add(op!(LoadString, reg!(6), string!("parse")))
+                .add(op!(PropAccess, reg!(5), reg!(1), reg!(6)))
+                .add(op!(CallFunc, reg!(3), reg!(5), reg!(1), reg_arr!(4)))
+                .add(op!(LoadLongNum, reg!(200), long_num!(81)))
+                .add_label(0)
+                .add(op!(Copy, reg!(3), reg!(2)))
+                .add(op!(LoadLongNum, reg!(200), long_num!(81)))
+                .add_label(1)
+                .add(op!(LoadString, reg!(8), string!("log")))
+                .add(op!(PropAccess, reg!(7), reg!(0), reg!(8)))
+                .add(op!(CallFunc, reg!(202), reg!(7), reg!(0), reg_arr!(3)))
+                .add(op!(LoadLongNum, reg!(200), long_num!(81)))
+    );
+
+    run_test("var x = 10; try { throw x*2; }", BytecodeCompiler::new(), Bytecode::new()
+        .add(op!(LoadNum, reg!(0), short_num!(10)))
+        .add(op!(Try, reg!(202), addr!(28), addr!(34)))
+        .add(op!(LoadNum, reg!(2), short_num!(2)))
+        .add(op!(Mul, reg!(1), reg!(0), reg!(2)))
+        .add(op!(Throw, reg!(1)))
+        .add(op!(LoadLongNum, reg!(200), long_num!(40)))
+        .add_label(0)
+        .add(op!(LoadLongNum, reg!(200), long_num!(40)))
+        .add_label(1)
+        .add(op!(LoadLongNum, reg!(200), long_num!(40)))
+    );
+}
+
+#[test]
 fn test_unsupported_exprs() {
     // Arrow functions
     check_is_unsupported_error("() => 0;", BytecodeCompiler::new());
-    // Await // This seems tp be buggy in RESSA
+    // Arrow function placeholder
+    check_is_unsupported_error("_ => 0;", BytecodeCompiler::new());
+
+    // Await, FIXME, this seems to be buggy in RESSA
     // check_is_unsupported_error("var x = await something();", BytecodeCompiler::new());
+
     // Class expressions
     check_is_unsupported_error("var x = class X {};", BytecodeCompiler::new());
     // Function expressions
     check_is_unsupported_error("var x = function X() {};", BytecodeCompiler::new());
 
     // Object related stuff
-    check_is_unsupported_error("var x = this;", BytecodeCompiler::new());
-    check_is_unsupported_error("var x = {};", BytecodeCompiler::new());
     check_is_unsupported_error("var x = new X();", BytecodeCompiler::new());
+    check_is_unsupported_error("var x = {};", BytecodeCompiler::new());
+    check_is_unsupported_error("var x = this;", BytecodeCompiler::new());
 
-    // This list is not complete...
+    // yield, FIXME
+    // check_is_unsupported_error("var index; while (index < 2) { yield index++; }", BytecodeCompiler::new());
+
+    // Spread
+    check_is_unsupported_error("const nums = [1, 2, 3]; func(...nums);", BytecodeCompiler::new());
+
+    // Seqeunce
+    check_is_unsupported_error("var x = 10; var b = (x+=10, x==20);", BytecodeCompiler::new());
+
+    // TaggedTemplate, super, meta properties
 }
 
 #[test]
 fn test_unsupported_stmts() {
     check_is_unsupported_error("switch (x) { case 0: ;}", BytecodeCompiler::new());
 
-    check_is_unsupported_error("throw 0;", BytecodeCompiler::new());
-    check_is_unsupported_error("try{}", BytecodeCompiler::new());
-
     check_is_unsupported_error("for (x in X) {}", BytecodeCompiler::new());
     check_is_unsupported_error("for (x of X) {}", BytecodeCompiler::new());
 
-    // This list is not complete...
+    check_is_unsupported_error("with(x) {}", BytecodeCompiler::new());
+    check_is_unsupported_error("debugger;", BytecodeCompiler::new());
 }

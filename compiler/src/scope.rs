@@ -52,6 +52,7 @@ pub struct Scope
 {
     decls: HashMap<String, Declaration>,
     new_decls: HashSet<String>,
+    /// Is always sorted
     unused_register: VecDeque<Register>,
     pub used_decls: HashSet<Declaration>
 }
@@ -205,6 +206,11 @@ impl Scopes
         Ok(())
     }
 
+    pub fn enter_new_block_scope(&mut self) -> CompilerResult<()> {
+        self.scopes.push(Scope::derive_scope(self.current_scope()?)?);
+        Ok(())
+    }
+
     pub fn current_scope(&self) -> CompilerResult<&Scope> {
         self.scopes.last().ok_or(
             CompilerError::Custom("No current scope".into())
@@ -223,6 +229,19 @@ impl Scopes
         )?;
 
         if let Ok(current_scope) = self.current_scope_mut() {
+            current_scope.used_decls.extend(scope.used_decls.iter().cloned());
+        }
+
+        Ok(scope)
+    }
+
+    pub fn leave_current_block_scope(&mut self) -> CompilerResult<Scope> {
+        let scope = self.scopes.pop().ok_or(
+            CompilerError::Custom("Cannot leave inexisting scope".into())
+        )?;
+
+        if let Ok(current_scope) = self.current_scope_mut() {
+            current_scope.unused_register = scope.unused_register.clone();
             current_scope.used_decls.extend(scope.used_decls.iter().cloned());
         }
 

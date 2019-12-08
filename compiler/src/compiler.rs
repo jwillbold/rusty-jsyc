@@ -272,7 +272,7 @@ impl BytecodeCompiler {
     fn compile_stmt(&mut self, stmt: &Stmt) -> BytecodeResult {
         match stmt {
             Stmt::Expr(expr) => self.compile_expr(&expr, self.isa.reserved_reg(&ReservedeRegister::TrashRegister)),
-            Stmt::Block(stmts) => stmts.iter().map(|part| self.compile_program_part(part)).collect(),
+            Stmt::Block(block_stmt) => self.compile_block_stmt(block_stmt),
             Stmt::Empty => Ok(Bytecode::new()),
             Stmt::Debugger => Err(CompilerError::are_unsupported("Debugger statements")),
             Stmt::With(_) => Err(CompilerError::are_unsupported("'with' statements")),
@@ -282,8 +282,8 @@ impl BytecodeCompiler {
             Stmt::Continue(continue_stmt) => self.compile_continue_stmt(continue_stmt),
             Stmt::If(if_stmt) => self.compile_if_stmt(if_stmt),
             Stmt::Switch(_) => Err(CompilerError::are_unsupported("'switch' statements")),
-            Stmt::Throw(_) => Err(CompilerError::are_unsupported("'throw' statements")),
-            Stmt::Try(_) => Err(CompilerError::are_unsupported("'try' statements")),
+            Stmt::Throw(throw_expr) => self.compile_throw_stmt(throw_expr),
+            Stmt::Try(try_stmt) => self.compile_try_stmt(try_stmt),
             Stmt::While(while_stmt) => self.compile_while_stmt(while_stmt),
             Stmt::DoWhile(dowhile_stmt) => self.compile_dowhile_stmt(dowhile_stmt),
             Stmt::For(for_stmt) => self.compile_for_stmt(for_stmt),
@@ -291,6 +291,14 @@ impl BytecodeCompiler {
             Stmt::ForOf(_) => Err(CompilerError::are_unsupported("for-of statements")),
             Stmt::Var(decls) => self.compile_var_decl(&VariableKind::Var, &decls),
         }
+    }
+
+    fn compile_block_stmt(&mut self, block_stmt: &BlockStmt) -> BytecodeResult {
+        self.scopes.enter_new_block_scope()?;
+        let maybe_bc = block_stmt.iter().map(|part| self.compile_program_part(part)).collect();
+        self.scopes.leave_current_block_scope()?;
+
+        maybe_bc
     }
 
     fn compile_return_stmt(&mut self, ret: &Option<Expr>) -> BytecodeResult {
@@ -376,6 +384,67 @@ impl BytecodeCompiler {
             Ok(bytecode
                 .add_label(if_branch_end_label))
         }
+    }
+
+    fn compile_throw_stmt(&mut self, throw_expr: &Expr) -> BytecodeResult {
+        let (bc, reg) = self.maybe_compile_expr(throw_expr, None)?;
+
+        Ok(bc.add(Operation::new(Instruction::Throw, vec![Operand::Reg(reg)])))
+    }
+
+    fn compile_try_stmt(&mut self, try_stmt: &TryStmt) -> BytecodeResult {
+        let try_block_bc = self.compile_block_stmt(&try_stmt.block)?;
+        let trash_reg = self.isa.reserved_reg(&ReservedeRegister::TrashRegister);
+        let (catch_block_bc, catch_reg) = try_stmt.handler.as_ref()
+                                            .map(|h| self.compile_catch_clause(&h))
+                                            .unwrap_or_else(|| Ok((Bytecode::new(), trash_reg)))?;
+        let final_block_bc = try_stmt.finalizer.as_ref()
+                                            .map(|b| self.compile_block_stmt(&b))
+                                            .unwrap_or_else(|| Ok(Bytecode::new()))?;
+
+        let catch_block_label = self.label_generator.generate_label();
+        let finally_start_label = self.label_generator.generate_label();
+
+        let stop_prog_flow_op = Operation::new(Instruction::LoadLongNum, vec![
+            Operand::Reg(self.isa.reserved_reg(&ReservedeRegister::BytecodePointer)),
+            Operand::BytecodeEnd]);
+
+        Ok(Bytecode::new()
+            .add(Operation::new(Instruction::Try, vec![
+                Operand::Reg(catch_reg),
+                Operand::branch_addr(catch_block_label),
+                Operand::branch_addr(finally_start_label),
+            ]))
+            .add_bytecode(try_block_bc)
+            .add(stop_prog_flow_op.clone())
+            .add_label(catch_block_label)
+            .add_bytecode(catch_block_bc)
+            .add(stop_prog_flow_op.clone())
+            .add_label(finally_start_label)
+            .add_bytecode(final_block_bc)
+            .add(stop_prog_flow_op)
+        )
+    }
+
+    fn compile_catch_clause(&mut self, catch_clause: &CatchClause) -> CompilerResult<(Bytecode, Register)> {
+        self.scopes.enter_new_scope()?;
+
+        let reg = if let Some(param) = &catch_clause.param {
+            if let Pat::Identifier(ident) = param {
+                self.scopes.add_decl(ident.to_string(),
+                        DeclarationType::Variable(MyVariableKind::from(&VariableKind::Let)))?
+            } else {
+                return Err(CompilerError::are_unsupported("Catch patterns other than an identifier".into()));
+            }
+        } else {
+            self.isa.reserved_reg(&ReservedeRegister::TrashRegister)
+        };
+
+        let body_bc = self.compile_block_stmt(&catch_clause.body)?;
+
+        self.scopes.leave_current_scope()?;
+
+        Ok((body_bc, reg))
     }
 
     fn compile_while_stmt(&mut self, while_stmt: &WhileStmt) -> BytecodeResult {
@@ -806,12 +875,16 @@ impl BytecodeCompiler {
             }
         }).collect();
 
+        let total_bc_len_operand = Operand::LongNum(bc.length_in_bytes() as i32);
+
         for cmd in bc.commands_iter_mut() {
             for op in cmd.operands.iter_mut() {
                 if let Operand::BranchAddr(token) = op {
                     *op = Operand::LongNum(*label_offsets.get(&token.label).ok_or(
                         CompilerError::Custom(format!("Found unknown label {}", token.label))
                     )? as i32);
+                } else if let Operand::BytecodeEnd = op {
+                    *op = total_bc_len_operand.clone()
                 }
             }
         }

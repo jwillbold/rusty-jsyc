@@ -2,94 +2,60 @@ extern crate jsyc_compiler;
 extern crate resw;
 extern crate resast;
 extern crate ressa;
-extern crate clap;
+extern crate structopt;
 
 mod composer;
 mod errors;
+mod options;
 
 use std::io::Read;
 use std::fs;
+use std::path::PathBuf;
 use jsyc_compiler::{JSSourceCode, BytecodeCompiler};
-use clap::{Arg, App};
 
-use errors::{CompositionResult};
-use composer::{Composer, VM};
+use crate::errors::{CompositionResult};
+use crate::composer::{Composer, VM};
+use crate::options::{Options};
+use crate::structopt::StructOpt;
 
 
-fn load_vm_template(path: &str) -> CompositionResult<VM> {
+fn load_js_from_file(path: &PathBuf) -> CompositionResult<JSSourceCode> {
     let mut f = fs::File::open(path)?;
-    let mut vm_code = String::new();
-    f.read_to_string(&mut vm_code)?;
+    let mut string = String::new();
+    f.read_to_string(&mut string)?;
 
-    VM::from_js_code(JSSourceCode::new(vm_code))
-}
-
-fn load_js_code(path: &str) -> CompositionResult<JSSourceCode> {
-    let mut f = fs::File::open(path)?;
-    let mut js_code = String::new();
-    f.read_to_string(&mut js_code)?;
-
-    Ok(JSSourceCode::new(js_code))
+    Ok(JSSourceCode::new(string))
 }
 
 fn main() -> CompositionResult<()> {
-    let matches = App::new("Rusty JSYC bytecode compiler")
-                    .version("1.0")
-                    .author("Johannes Willbold <johannes.willbold@rub.de>")
-                    .about("A tool to compile JavaScript code into bytecode to be used in virtualization obfuscation.")
-                    .arg(Arg::with_name("INPUT")
-                            .required(true)
-                            .value_name("/path/to/javascript.js"))
-                    .arg(Arg::with_name("VM")
-                            .value_name("/path/to/vm-template.js")
-                            .required(true))
-                    .arg(Arg::with_name("OUTPUT_DIR")
-                            .value_name("/output/dir")
-                            .required(true))
-                    .arg(Arg::with_name("INDEX_HTML")
-                            .value_name("/path/to/index.html")
-                            .required(false))
-                    .arg(Arg::with_name("s")
-                            .short("s")
-                            .long("show-bytecode"))
-                    .arg(Arg::with_name("d")
-                            .short("d")
-                            .long("show-depedencies"))
-                    .arg(Arg::with_name("v")
-                            .short("v")
-                            .long("verbose"))
-                    .get_matches();
+    let options = Options::from_args();
 
-    let code_path =  matches.value_of("INPUT").unwrap();
-    let vm_path =  matches.value_of("VM").unwrap();
-    let output_dir = matches.value_of("OUTPUT_DIR").unwrap();
-
-    if matches.is_present("v") {
-        println!("Using input file: {}", code_path);
-        println!("Using vm template file: {}", vm_path);
-        println!("Using output dir: {}", output_dir);
+    if options.verbose {
+        println!("Using input file: {}", options.input_path.to_str().unwrap());
+        println!("Using vm template file: {}", options.vm_template_path.to_str().unwrap());
+        println!("Using output dir: {}", options.output_dir.to_str().unwrap());
     }
 
-    let output_dir = std::path::Path::new(output_dir);
+    let output_dir = std::path::Path::new(&options.output_dir);
 
     if !output_dir.exists() {
         if let Some(paren_dir) = output_dir.parent() {
             if !paren_dir.exists() {
-                if matches.is_present("v") {
+                if options.verbose {
                     println!("Creating output parent dir...");
                 }
                 fs::create_dir(paren_dir)?;
             }
         }
 
-        if matches.is_present("v") {
+        if options.verbose {
             println!("Creating output dir...");
         }
         fs::create_dir(output_dir)?;
     }
 
-    let js_code = load_js_code(code_path)?;
-    let vm = load_vm_template(vm_path)?;
+    let js_code = load_js_from_file(&options.input_path)?;
+    let vm = VM::from_js_code(load_js_from_file(&options.vm_template_path)?)?;
 
 
     println!("Starting to compile bytecode...");
@@ -99,16 +65,16 @@ fn main() -> CompositionResult<()> {
 
     println!("Finished bytecode compilation");
 
-    if matches.is_present("d") {
+    if options.show_dependencies {
         println!("Dependencies: {:?}", &compiler.decl_dependencies());
     }
 
-    if matches.is_present("s") {
+    if options.show_bytecode {
         println!("Bytecode:\n{}", &bytecode);
     }
 
-    if let Some(index_html_template) = matches.value_of("INDEX_HTML") {
-        let index_html_template_path = std::path::Path::new(index_html_template);
+    if let Some(index_html_template) = &options.index_html_path {
+        let index_html_template_path = std::path::Path::new(&index_html_template);
         println!("Using html template {}", index_html_template_path.display());
         let html_template = fs::read_to_string(index_html_template_path)?;
         let index_html = html_template.replace("Base64EncodedBytecode", &bytecode.encode_base64());
@@ -119,7 +85,7 @@ fn main() -> CompositionResult<()> {
     }
 
     println!("Starting to compose VM and bytecode...");
-    let composer = Composer::new(vm, bytecode);
+    let composer = Composer::new(vm, bytecode, &options);
 
     let (vm, bytecode) = composer.compose(compiler.decl_dependencies())?;
     vm.save_to_file(output_dir.join("vm.js"))?;
