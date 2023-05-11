@@ -96,7 +96,7 @@ It does not need to be ``window``, any object instance know to both contexts wil
 
 #### Current unsound properties
 These are the properties that are not reflected by the bytecode as they would be in real JavaScript.
- - the 'this' pointer for external non-member functions is simply 'void 0'
+ - The 'this' pointer for external non-member functions is simply 'void 0'
  - Assignment expressions do not return a value, and thus are not really expressions
  - If you declare a variable without assignment it's value will be unknown. Thus it might or might not be undefined (void 0). (It will be undefined but not JavaScript's undefined (void 0))
  - ``let`` and ``const`` declarations are treated as ``var`` declarations
